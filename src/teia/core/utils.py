@@ -87,11 +87,15 @@ def disable_pretrained_loading(payload: Any) -> Any:
 
 
 def get_dot_path(mapping: dict[str, Any], dotted_path: str) -> Any:
+    """Value at a Hydra-style dotted path; a numeric part indexes a list (``schedulers.0.total_iters``)."""
     current: Any = mapping
     for part in dotted_path.split("."):
-        if not isinstance(current, dict) or part not in current:
+        if isinstance(current, dict) and part in current:
+            current = current[part]
+        elif isinstance(current, list) and part.isdigit() and int(part) < len(current):
+            current = current[int(part)]
+        else:
             raise KeyError(dotted_path)
-        current = current[part]
     return current
 
 
