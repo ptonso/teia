@@ -41,7 +41,7 @@ Role comes from the `out` namespace. A loss `in` is only `batch.*` and `pred.*`,
 
 ### No-loss modules
 
-A netmodule with no loss node is not rejected: only existing loss nodes are validated. `++trainer.fast_dev_run=true` then completes with no loss term, and the summary can show `Trainable params: 0`.
+A netmodule with no loss node is not rejected: only existing loss nodes are validated. `teia train --dry-run` then completes with no loss term, and the summary can show `Trainable params: 0`.
 
 ## Constraints
 

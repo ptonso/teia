@@ -15,6 +15,11 @@ HELP = "Run the train stage."
 def register_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> argparse.ArgumentParser:
     parser = subparsers.add_parser(COMMAND_NAME, help=HELP)
     add_train_runtime_args(parser)
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Pre-flight: run one batch of every stage (train, validate, test, eval) to check contract, wiring and data.",
+    )
     parser.add_argument("--skip-post-test", action="store_true", help="Skip the post-train test stage.")
     parser.add_argument("--skip-report", action="store_true", help="Skip the post-train eval graph.")
     parser.add_argument(
@@ -29,6 +34,7 @@ def register_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentPars
 
 
 def run(args: argparse.Namespace) -> int:
+    overrides = [*args.overrides, "trainer.fast_dev_run=true"] if args.dry_run else list(args.overrides)
     from_run_dir = Path(args.from_run_dir).resolve() if args.from_run_dir else None
     if from_run_dir is not None:
         if args.project_dir is not None:
@@ -43,17 +49,17 @@ def run(args: argparse.Namespace) -> int:
 
     if args.cfg:
         if from_run_dir is not None:
-            composed, hydra_payload, *_ = compose_run_config_tree(run_dir=from_run_dir, overrides=list(args.overrides))
+            composed, hydra_payload, *_ = compose_run_config_tree(run_dir=from_run_dir, overrides=overrides)
         else:
             composed, hydra_payload = compose_overlay_config(
-                project_dir=project_dir, config_dir=config_dir, overrides=list(args.overrides)
+                project_dir=project_dir, config_dir=config_dir, overrides=overrides
             )
         return dump_cfg(args.cfg, composed, hydra_payload)
 
     train_project(
         project_dir=project_dir,
         config_dir=config_dir,
-        overrides=list(args.overrides),
+        overrides=overrides,
         run_name=args.run_name,
         checkpoint=args.checkpoint,
         from_run_dir=from_run_dir,

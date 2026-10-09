@@ -33,11 +33,13 @@ Walk-through: `teia train` composes, instantiates the datamodule and module, per
 - `teia config tree`: `--root <dotted>`, `--level <N>`, `--node-only`. No overrides.
 - `teia config explain <overrides...>`: no flags.
 - `teia config lint`: no flags.
-- `teia train`: `--project-dir`, `--config-dir`, `--run-name`, `--from-run-dir`, `--from-run-weights`, `--checkpoint`, and the post-train toggles `--skip-post-test`, `--skip-report`, `--export`.
+- `teia train`: `--project-dir`, `--config-dir`, `--run-name`, `--from-run-dir`, `--from-run-weights`, `--checkpoint`, and the post-train toggles `--dry-run`, `--skip-post-test`, `--skip-report`, `--export`.
 - `teia eval`: one or more `--run-dir` (repeatable), `--split` (capture split, default `test`), `--output-dir` (default `<run-dir>/eval`, or `./compare` for several runs), `--compare <yaml>` (a `compare:` node map, default `core/conf/compare/default.yaml`).
 - `teia test`, `teia infer`, `teia export`: required `--run-dir`, plus `--checkpoint` and `--output-dir`. `test` also takes `--skip-report`. `infer` also takes `--src` (new input data) and `--dst` (prediction destination, alias of `--output-dir`, which `--dst` wins over).
 
 ### Behavior
+
+- `train --dry-run` appends `trainer.fast_dev_run=true` to the overrides, so it is saved in `overrides.yaml` and replays in the post-train test and eval. Lightning then runs one batch of each stage, and the run checks contract, wiring, data and the eval graph without a usable checkpoint. `trainer.fast_dev_run` is a real key of the default trainer group (`false`), so the plain override also works.
 
 - `config init` writes `conf/node/net/head/custom.yaml`, `conf/node/net/loss/custom.yaml` and `conf/node/data/reader/custom.yaml` stubs. With `--from task=<name>` it composes the task and writes fully resolved `conf/{datamodule,netmodule,evalmodule}/mine/<name>.yaml` (real `_target_`s, no `defaults:` list, nothing left null), selectable as `<graph>module=mine/<name>`. Neither mode copies the package tree, and the overlay enters `searchpath` automatically when `./conf` exists.
 - `init` creates `<project-root>/conf/` and symlinks every packaged `teia/skills/<name>/` that holds a `SKILL.md` into `<project-root>/.claude/skills/` and `.agents/skills/`. The links are absolute into the installed package, so the package stays the single source of truth and `pip install -U teia` updates every project. It is idempotent, drops dangling links, never replaces a real file or directory, and appends the managed link paths to the project `.gitignore` (each teammate's `teia init` recreates them). Override stubs come from `config init`, never from `init`.

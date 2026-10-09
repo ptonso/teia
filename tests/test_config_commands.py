@@ -78,3 +78,13 @@ class ConfigExplainTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_train_dry_run_sets_fast_dev_run(tmp_path, capsys) -> None:
+    from teia.core.cli import main
+
+    main(["train", "--project-dir", str(tmp_path), "-c", "job"])
+    assert "fast_dev_run: false" in capsys.readouterr().out
+
+    main(["train", "--project-dir", str(tmp_path), "-c", "job", "--dry-run"])
+    assert "fast_dev_run: true" in capsys.readouterr().out
