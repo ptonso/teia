@@ -33,17 +33,31 @@ Find the closest existing member of the same folder, and read the whole file bef
 
 - the module docstring: a title line, then `Source:` (either `common knowledge`, or a list of `- title:` / `url:` / `year:` entries for the paper), then `Description:` with two or three sentences. A component that runs code from another repository adds an `Upstream` block ([baselines](baselines.md#where-the-code-lives));
 - one public class per module, named for the component;
-- the constructor pattern: variations a config can express become arguments with defaults, so that one class serves many options;
 - how it reads its inputs: forward and loss methods receive inputs positionally, in the order of the node's `in` list, and envelope keys such as `in`, `out`, `weight` and `detach` are stripped before construction, so no constructor argument may reuse those names;
 - for an activation, the pattern the base docstring lays out: a traceable `activation` method, and an inline `kernel` that returns one flat dict of atoms per sample, with `params()` supplying any literals the kernel needs. What the kernel returns are the atoms your netmodule's `capture:` map will name.
 
 If your idea needs a contract the neighbours do not follow, that is a sign you are in the wrong folder, or on a task boundary that needs a new contract ([write-config](write-config.md#a-new-task)).
 
-## 4. Wire it in
+## 4. Make it general, readable and documented
+
+A good component is one class that yaml leaves specialise into many architectures, written so a reviewer sees its structure at a glance. The CNN VAE family in teia-arsenal (`ConvEncoder`, `GaussianCNNVAENeck`, `ConvDecoder`) is a good model to open.
+
+- **Configuration.** Each interchangeable part of the design becomes a choice selected by name, one small module per option behind a shared call signature, in the way `act(activation)` and `Norm(norm_type, c)` work. Numeric variations become arguments with defaults. Every option exists because some architecture uses it.
+- **Code.** One module per concept of the design, named for it. When the parts outgrow one file, the node's module keeps the node and its skeleton, and the parts move to modules beside it named for their role, each citing the sources it implements and listed in the folder README. Keep these modules public: an underscore hides components from whoever browses the library. `forward` reads as the method's steps in order, one step per paragraph with a blank line between steps and one idea per line. Each paragraph of the main `forward` opens with a short comment naming its step, with the formula when it has one. Arguments are validated at build time, with errors naming the argument. Trailing comments on consecutive lines start in the same column.
+- **Documentation.** Short and exact. The module `Description:` explains the idea in plain words, then which architectures the choices reproduce. A class docstring is a summary line with the paper reference and the formula, on its own indented lines when it spans several. The node's docstring adds a one-line `Args:` entry per argument with its choices.
+- **Leaves.** The leaf named after the component holds its reference configuration. Each further architecture the class reproduces gets its own leaf, named after it, with every argument spelled out. A component that can fill more than one purpose in a net (encoder, neck, head…) gets a leaf in each purpose folder it fills, with arguments set for that role.
+
+When an existing neighbour turns out to be one choice of your component, propose to the user that it becomes a leaf of yours.
+
+### From a paper
+
+When `Source:` cites a paper, the paper decides the shape. Read it for the general form it states and the parts it treats as interchangeable: the slots it defines, the alternatives it ablates, the earlier methods it reduces to special cases. Those parts are the choices, the paper's defaults are the reference leaf, and its notation names the modules and variables, so someone with the article open finds each equation in the code. The docstrings give each argument's symbol and the paper's value, and each choice module's docstring cites its section. Parts of the paper you leave out go under `Adaptations`. When a reference implementation exists, compare outputs against it during the checks.
+
+## 5. Wire it in
 
 Write a leaf in the owner folder that points at the class (`_target_: <package>.node.net...<Class>`) with its arguments, mount it in a module with the right `in` and `out`, and select the module ([write-config](write-config.md)). Reuse the surrounding installed leaves for everything else, so that the diff between your experiment and an installed setup is the component alone.
 
-## 5. Check it
+## 6. Check it
 
 1. Instantiate the class alone and run it on a random tensor shaped like its input. This catches shape and dtype mistakes before Teia's machinery is involved.
 2. Run `teia config lint`, then the one-batch pre-flight on the real data ([validate in layers](SKILL.md#ground-rules)). Wiring errors name the node and key: a missing producer, a duplicate output key, a cycle, an unresolvable dimension name, or a capture atom that the contract requires and the map lacks.

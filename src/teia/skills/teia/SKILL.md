@@ -1,6 +1,6 @@
 ---
 name: teia
-description: Work with Teia, a Hydra-configured deep-learning runtime, inside a project. Learn what tasks, modules and components are installed by asking the CLI, prepare data for a task, wire train, eval, infer and export runs and experiments, write new configs or Python components that respect Teia's contracts, make the project an installable Teia plugin, wrap baselines for a fair comparison, and get a plugin ready to publish. Use whenever a project uses Teia (`teia train`, `teia plugin`, a `conf/` overlay, `task=...`).
+description: Work with Teia, a Hydra-configured deep-learning runtime, inside a project. Learn what tasks, modules and components are installed by asking the CLI, prepare data for a task, wire train, eval, infer and export runs and experiments, write new configs or Python components that respect Teia's contracts, including general, well-documented reimplementations of paper techniques, make the project an installable Teia plugin, wrap baselines for a fair comparison, and get a plugin ready to publish. Use whenever a project uses Teia (`teia train`, `teia plugin`, a `conf/` overlay, `task=...`).
 ---
 
 # Working with Teia
