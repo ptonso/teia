@@ -34,7 +34,7 @@ The package name is the distribution name with `-` replaced by `_`. The owner fo
    - Keep in the root `conf/` only personal overrides that should not ship, such as the `mine/` files `teia config init` writes.
 4. **Install it editable:** `pip install -e .` inside the project's environment. `teia config list` now shows a layer named after the package.
 5. **Check:** `teia plugin check`. Fix each finding and run it again until it reports no error. Each line names a rule and the file at fault. The table below covers the fixes that are not obvious from the message.
-6. **Run it:** a one-batch pre-flight with the plugin's own preset, `teia train task=<package>/<task> data_root=<dir> ++trainer.fast_dev_run=true`.
+6. **Run it:** a one-batch pre-flight with the plugin's own preset, `teia train task=<package>/<task> data_root=<dir> --dry-run`.
 
 | Rule | Usual fix |
 |---|---|

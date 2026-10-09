@@ -35,7 +35,7 @@ Splits (train, validation, test) and label names usually come from the layout it
 Try the real pre-flight and one batch before a long run ([validate in layers](SKILL.md#ground-rules)):
 
 ```bash
-teia train task=<task> data_root=<dir> ++trainer.fast_dev_run=true
+teia train task=<task> data_root=<dir> --dry-run
 ```
 
 Data problems show up here as reader errors that name the path or column at fault. Then run for real ([run](run.md)) and read `eval/summary.yaml` in the run directory for the headline numbers. Report the run directory, the numbers, and the choices the task made for the user (module names from `teia config show task=<task>`), since those are what the next level of work would change.

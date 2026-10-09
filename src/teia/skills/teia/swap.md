@@ -14,13 +14,13 @@ Selections and overrides are ordinary Hydra syntax, given after the command, and
 | Replace a leaf mounted at the module's root (an optimizer, for instance) | `node/net/<purpose>@netmodule=<leaf>` |
 | Point at the dataset | `data_root=<dir>` |
 | Change a value that exists | `netmodule.lr=1e-3`, `datamodule.batch_size=16` |
-| Add a value that does not exist yet | `++trainer.fast_dev_run=true` |
+| Check a setup on one batch of every stage | `--dry-run` |
 | Work without a task (no contract check) | `datamodule=<x> netmodule=<y> evalmodule=<z>` |
 
 A few things worth knowing:
 
 - A node swap replaces the leaf's `_target_` and arguments and keeps the module's wiring. If the new leaf needs different `in` or `out`, override those in the same command, or write a module ([write-config](write-config.md)).
-- A bare `+key=value` is rejected, and a missing key needs `++`. A plain `key=value` whose key does not exist prints a warning about a typo. That usually means a wrong path, so read it.
+- A plain `key=value` whose key does not exist prints a warning about a typo. That usually means a wrong path, so read it. Do not silence it with `+` or `++`: write the key into a leaf, module or preset instead ([write-config](write-config.md#avoid-)).
 - The name of the key to override is what `config show` prints. Networks that require a particular input declare it in their own config (for example under `input:`), and the datamodule reads it, so switching architectures can switch the input with it. Look at the module before assuming a datamodule knob.
 - A module from another task's folder is accepted when it satisfies the selected contract. Pre-flight names the key that does not.
 

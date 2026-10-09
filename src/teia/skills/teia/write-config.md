@@ -23,9 +23,21 @@ Each layer of configuration has its own shape, and `teia config lint` reports de
 - Wiring is `in` and `out` under each mounted name (a loss also has `weight`). `in` lists the keys the node reads, and `out` maps each key it writes to a shape, or `null` when the shape is inferred. Shapes may use dimension names, such as a class count, which Teia resolves from the datamodule's `meta`. Prefer these names over copying numbers or writing `${...}` interpolations.
 - A netmodule ends with the `capture:` map from each atom of the task's contract to an activation output (`act.<key>`) or a decoded atom (`post.<alias>.<atom>`). It is the network's side of seam B, so read the contract ([inspect](inspect.md#reading-what-comes-back)) to see which atoms are required.
 - A mounted name must not contain `_group_` or `_name_`, because Hydra rewrites those. Lint catches it.
+- A netmodule can declare preferences that the data graph consumes, such as the image size or normalization statistics, under `input:`. The datamodule reads them with an interpolation (`image_size: ${netmodule.input.image_size}`), so swapping the netmodule carries the preference along.
+- Keys that are not nodes configure the module's executor: `batch_size` and `image_size` for a datamodule, `input`, `capture` and the optimizer fields for a netmodule, `enabled`, `split` and `capture` limits for an evalmodule. A node is any mapping that carries a `_target_`.
 - A module in the project may name its own `_target_` to run a custom executor. Installed modules never do, so most modules should not.
 
 **A task preset** (`task/<package>/<task>.yaml`) starts with `# @package _global_`, sets `task._target_` to a contract class, selects the default module of each graph with `override /datamodule: ...` (and likewise `netmodule`, `evalmodule`), and may set run-wide options such as callbacks or trainer settings. It defines no nodes itself. Copy an installed preset and change the selections.
+
+## Avoid `++`
+
+Hydra's `+key=value` and `++key=value` force a key into the composed config, and they hide typos because they accept any path. Teia rejects a bare `+`, and no guide uses `++`. Put the setting in a file instead: give the leaf, the module or the preset the key, so that it exists and a plain `key=value` override works and warns on a typo. A run-time switch that needs a command-line form gets a real key and a flag, as `--dry-run` does for `trainer.fast_dev_run`; if you find yourself wanting `++`, say so in the report.
+
+Other mistakes that lint and the composer do not always stop:
+
+- Name fields by content (`batch.image`, `feat.pooled`), never by position.
+- Take dataset-derived sizes from `out` dimension names, never from `${...}` interpolations.
+- Do not add a `domain` or `task` string that routes behaviour. The task is identified by `task._target_` alone.
 
 ## A new task
 
@@ -35,4 +47,4 @@ A new task is warranted when the data or the predictions differ in kind from eve
 2. **A module per graph** in `conf/<graph>module/<your-task>/<package>/`, each written as above, with the netmodule's `capture:` map covering the contract.
 3. **A preset** in `conf/task/<package>/<your-task>.yaml` pointing at them and at your contract's dotted path.
 
-Any node those modules need that does not exist is a component ([write-component](write-component.md)). Verify with `++trainer.fast_dev_run=true`: the contract checks that the modules and the data agree, and its errors name what is missing.
+Any node those modules need that does not exist is a component ([write-component](write-component.md)). Verify with `--dry-run`: the contract checks that the modules and the data agree, and its errors name what is missing.
