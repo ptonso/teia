@@ -1,0 +1,10 @@
+# @package _global_
+defaults:
+  - override /datamodule: tabular-cls/csv
+  - override /netmodule: tabular-cls/numerical_mlp
+  - override /evalmodule: tabular-cls/default
+  - _self_
+
+task:
+  _target_: teia.task.tabular_cls.TabularCls
+seed: 0

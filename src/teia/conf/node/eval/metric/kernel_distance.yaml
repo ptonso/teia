@@ -1,0 +1,4 @@
+_target_: teia.node.eval.metric.unpaired.kernel_distance.KernelDistance
+device: cpu
+feature_extractor:
+  _target_: teia.node.eval.metric.unpaired.features.FlattenFeatures

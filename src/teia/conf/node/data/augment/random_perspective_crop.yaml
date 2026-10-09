@@ -1,0 +1,6 @@
+_target_: teia.node.data.transform.augment.RandomPerspectiveCrop
+degrees: 0.0
+translate: [0.1, 0.1]
+scale: [0.5, 1.5]
+shear: 0.0
+perspective: 0.0

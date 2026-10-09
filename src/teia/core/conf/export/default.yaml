@@ -1,0 +1,5 @@
+checkpoint: null
+output_dir: null
+format: onnx
+opset: 18
+bundle_name: model

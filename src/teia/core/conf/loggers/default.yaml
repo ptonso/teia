@@ -1,0 +1,7 @@
+items:
+- _target_: lightning.pytorch.loggers.CSVLogger
+  save_dir: logs
+  name: teia
+  version: null
+  prefix: ""
+  flush_logs_every_n_steps: 100

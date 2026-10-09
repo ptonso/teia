@@ -1,0 +1,21 @@
+defaults:
+  - /evalmodule/_shared/run@_here_
+  - /node/eval/metric@horizon_error: horizon_error
+  - /node/eval/view@horizon_error_curve: multi_curve_bundle
+  - _self_
+
+horizon_error:
+  levels: ${netmodule.act.quantiles}
+  in: [capture.forecast.quantiles, batch.target]
+  out: eval.forecast.horizon_error
+  monitor: true
+horizon_error_curve:
+  title: Per-Horizon Error
+  x_label: Horizon step
+  y_label: MAE
+  filename: forecast_horizon_error_curve.png
+  in:
+    curves: eval.forecast.horizon_error:horizon_mae_curves
+summary:
+  _target_: teia.node.eval.view.summary.Summary
+  in: [eval.forecast.horizon_error]

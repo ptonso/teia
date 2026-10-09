@@ -1,0 +1,11 @@
+seed: ${oc.select:seed,42}
+determinism:
+  mode: prefer
+strict_task_coherence: true
+float32_matmul_precision: high
+channels_last: true
+ram_guard:
+  type: total_percent
+  gb: null
+  percent: 0.8
+  warn_fraction: 0.9

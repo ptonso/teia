@@ -1,0 +1,4 @@
+checkpoint: null
+output_dir: null
+ctx: {}          # postprocess ctx at inference (e.g. conf, iou, thresholds)
+restore: []      # batch fields merged into ctx so decode lands in original coordinates (e.g. ori_shape, ratio_pad)

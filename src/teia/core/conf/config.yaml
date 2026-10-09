@@ -1,0 +1,34 @@
+project_name: ${oc.select:project,teia-project}
+experiment_name: ${oc.select:experiment,generic}
+data_root: ???
+runs_root: runs
+cache_root: .teia-cache
+run_name: null
+run_parts:
+- project
+- experiment
+- run
+
+# CLI aliases for the resolved keys above
+project: ???
+experiment: ???
+seed: ???
+epochs: ???
+
+defaults:
+  # system, core-owned
+  - trainer: default
+  - runtime: default
+  - callbacks: default
+  - loggers: default
+  - train: default
+  - test: default
+  - infer: default
+  - export: default
+  # the three graphs (teia:core/config.md#root-skeleton)
+  - optional datamodule: null
+  - optional netmodule: null
+  - optional evalmodule: null
+  # a task preset overrides the module groups above
+  - optional task: null
+  - _self_

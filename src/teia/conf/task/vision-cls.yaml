@@ -1,0 +1,10 @@
+# @package _global_
+defaults:
+  - override /datamodule: vision-cls/image_folder
+  - override /netmodule: vision-cls/mlp
+  - override /evalmodule: vision-cls/default
+  - _self_
+
+task:
+  _target_: teia.task.vision_cls.VisionCls
+seed: 0

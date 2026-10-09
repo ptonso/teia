@@ -1,0 +1,20 @@
+summary:
+  _target_: teia.core.callbacks.GradSafeRichModelSummary
+  max_depth: 1
+
+early_stop:
+  _target_: lightning.pytorch.callbacks.EarlyStopping
+  monitor: val/loss
+  mode: min
+  patience: 30
+
+lr_monitor:
+  _target_: lightning.pytorch.callbacks.LearningRateMonitor
+  logging_interval: step
+  log_momentum: true
+  log_weight_decay: true
+
+items:
+- ${callbacks.summary}
+- ${callbacks.early_stop}
+- ${callbacks.lr_monitor}

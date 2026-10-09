@@ -1,0 +1,30 @@
+defaults:
+  - /evalmodule/_shared/run@_here_
+  - /node/eval/metric@concordance: concordance
+  - /node/eval/metric@km_estimate: km_estimate
+  - /node/eval/view@concordance_table: table
+  - /node/eval/view@km_by_risk_view: multi_curve_bundle
+  - _self_
+
+concordance:
+  in: [batch.time, batch.event, capture.survival.risk]
+  out: eval.survival.concordance
+  monitor: true
+km_estimate:
+  in: [batch.time, capture.survival.risk]
+  out: eval.survival.km
+concordance_table:
+  title: Concordance
+  filename: concordance.csv
+  in:
+    rows: eval.survival.concordance:rows
+km_by_risk_view:
+  title: "Kaplan\u2013Meier by Risk Group"
+  x_label: Time
+  y_label: Survival
+  filename: survival_km_by_risk_group.png
+  in:
+    curves: eval.survival.km:curves
+summary:
+  _target_: teia.node.eval.view.summary.Summary
+  in: [eval.survival.concordance]

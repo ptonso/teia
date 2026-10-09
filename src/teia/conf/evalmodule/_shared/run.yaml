@@ -1,0 +1,28 @@
+training_curves:
+  _target_: teia.node.eval.metric.run.training_curves.TrainingCurves
+  out: eval.run.training_curves
+target_summary:
+  _target_: teia.node.eval.metric.run.target_summary.TargetSummary
+  out: eval.run.target_summary
+loss_curves_view:
+  _target_: teia.node.eval.view.multi_curve_bundle.MultiCurveBundle
+  title: Training Loss and Metrics
+  x_label: epoch
+  y_label: value
+  filename: training_loss_and_metrics.png
+  in:
+    curves: eval.run.training_curves:loss_curves
+learning_rate_view:
+  _target_: teia.node.eval.view.multi_curve_bundle.MultiCurveBundle
+  title: Learning Rate Schedule
+  x_label: epoch
+  y_label: learning rate
+  filename: learning_rate_schedule.png
+  in:
+    curves: eval.run.training_curves:lr_curves
+target_summary_table:
+  _target_: teia.node.eval.view.table.Table
+  title: Target Summary
+  filename: target_summary.csv
+  in:
+    rows: eval.run.target_summary:rows

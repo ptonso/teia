@@ -1,0 +1,38 @@
+defaults:
+  - /evalmodule/_shared/run@_here_
+  - /node/eval/metric@residuals: residuals
+  - /node/eval/view@predicted_vs_actual_scatter: scatter_plot
+  - /node/eval/view@residual_histogram: grouped_histogram
+  - /node/eval/view@target_metrics_table: table
+  - _self_
+
+residuals:
+  out: eval.reg.residuals
+  in:
+    pred: capture.reg.mean
+    target: batch.target
+    target_names: meta.target_names
+  monitor: true
+predicted_vs_actual_scatter:
+  title: Predicted vs Actual
+  x_label: Actual
+  y_label: Predicted
+  filename: regression_predicted_vs_actual_scatter.png
+  in:
+    x: eval.reg.residuals:actual
+    y: eval.reg.residuals:pred
+    labels: eval.reg.residuals:index_labels
+residual_histogram:
+  title: Residual Distribution
+  x_label: Residual (predicted - actual)
+  filename: regression_residual_histogram.png
+  in:
+    groups: eval.reg.residuals:residual_groups
+target_metrics_table:
+  title: Target Metrics
+  filename: target_metrics.csv
+  in:
+    rows: eval.reg.residuals:target_rows
+summary:
+  _target_: teia.node.eval.view.summary.Summary
+  in: [eval.reg.residuals]

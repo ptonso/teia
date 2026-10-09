@@ -1,0 +1,3 @@
+_target_: teia.node.net.one_to_one.agnostic.pointwise_mlp.PointwiseMLP
+hidden: [128]
+dropout: 0.1

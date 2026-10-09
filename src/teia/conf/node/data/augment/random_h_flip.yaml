@@ -1,0 +1,2 @@
+_target_: teia.node.data.transform.augment.RandomHFlip
+p: 0.5

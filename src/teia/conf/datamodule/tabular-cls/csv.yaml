@@ -1,0 +1,82 @@
+defaults:
+  - /node/data/reader@rows: csv_rows
+  - /node/data/transform@num: numerical
+  - /node/data/transform@cat: categorical
+  - /node/data/transform@count: count
+  - /node/data/transform@temporal: temporal
+  - /node/data/transform@boolean: boolean
+  - /node/data/transform@num_mask: numerical_mask
+  - /node/data/transform@temporal_mask: temporal_mask
+  - /node/data/collate@num_stack: stack_float32
+  - /node/data/collate@cat_stack: stack_int64
+  - /node/data/collate@count_stack: stack_float32
+  - /node/data/collate@temporal_stack: stack_float32
+  - /node/data/collate@boolean_stack: stack_int64
+  - /node/data/collate@num_mask_stack: stack_float32
+  - /node/data/collate@temporal_mask_stack: stack_float32
+  - /node/data/writer@prediction_csv: csv_writer
+  - /node/data/collate@target_stack: class_labels
+  - _self_
+
+rows:
+  out: item.row
+schema:
+  _target_: teia.node.data.transform.schema.ResolveSchema
+  task: cls
+  in: item.row
+  out: plan.schema
+  stage: plan
+num:
+  in: item.row
+  out: item.numerical
+cat:
+  in: item.row
+  out: item.categorical
+count:
+  in: item.row
+  out: item.count
+temporal:
+  in: item.row
+  out: item.temporal
+boolean:
+  in: item.row
+  out: item.boolean
+num_mask:
+  in: item.row
+  out: item.numerical_mask
+temporal_mask:
+  in: item.row
+  out: item.temporal_mask
+num_stack:
+  in: item.numerical
+  out: batch.numerical
+cat_stack:
+  in: item.categorical
+  out: batch.categorical
+count_stack:
+  in: item.count
+  out: batch.count
+temporal_stack:
+  in: item.temporal
+  out: batch.temporal
+boolean_stack:
+  in: item.boolean
+  out: batch.boolean
+num_mask_stack:
+  in: item.numerical_mask
+  out: batch.numerical_mask
+temporal_mask_stack:
+  in: item.temporal_mask
+  out: batch.temporal_mask
+reader:
+  targets: [cls]
+target:
+  _target_: teia.node.data.transform.schema.Target
+  task: cls
+  field: cls
+  in: item.row
+  out: item.cls
+target_stack:
+  in: item.cls
+  out: batch.cls
+  stage: batch

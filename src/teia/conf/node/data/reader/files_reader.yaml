@@ -1,0 +1,3 @@
+_target_: teia.node.data.reader.files.FilesReader
+subdir: images
+glob: '*'

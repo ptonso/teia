@@ -1,0 +1,59 @@
+defaults:
+  - /evalmodule/_shared/run@_here_
+  - /node/eval/metric@confusion: semantic_confusion
+  - /node/eval/view@confusion_matrix_view: matrix_heatmap
+  - /node/eval/view@per_class_iou_bar: ranked_bar
+  - /node/eval/view@per_class_pixel_accuracy_bar: ranked_bar
+  - /node/eval/view@worst_confusions_bar: ranked_bar
+  - /node/eval/view@class_metrics_table: table
+  - _self_
+
+confusion:
+  in: [capture.seg.mask, batch.masks, meta.class_names]
+  out: eval.sem_seg.confusion
+  monitor: true
+  pred: capture.seg.mask
+  gt: batch.masks
+confusion_matrix_view:
+  title: Semantic Confusion Matrix (Normalized)
+  filename: semantic_confusion_matrix_normalized.png
+  in:
+    matrix: eval.sem_seg.confusion:confusion_matrix_normalized
+    x_labels: eval.sem_seg.confusion:class_names
+    y_labels: eval.sem_seg.confusion:class_names
+per_class_iou_bar:
+  title: Per-Class IoU
+  sort: true
+  xlabel: IoU
+  bounded_x: true
+  filename: per_class_iou_bar_sorted.png
+  in:
+    labels: eval.sem_seg.confusion:class_rows[].class_name
+    values: eval.sem_seg.confusion:class_rows[].iou
+    support: eval.sem_seg.confusion:class_rows[].support_pixels
+per_class_pixel_accuracy_bar:
+  title: Per-Class Pixel Accuracy
+  sort: true
+  xlabel: Pixel Accuracy
+  bounded_x: true
+  filename: per_class_pixel_accuracy_bar_sorted.png
+  in:
+    labels: eval.sem_seg.confusion:class_rows[].class_name
+    values: eval.sem_seg.confusion:class_rows[].pixel_accuracy
+    support: eval.sem_seg.confusion:class_rows[].support_pixels
+worst_confusions_bar:
+  title: Worst Semantic Confusions
+  sort: true
+  xlabel: Normalized Confusion
+  filename: worst_semantic_confusions_bar.png
+  in:
+    labels: eval.sem_seg.confusion:worst_confusion_pairs[].pair
+    values: eval.sem_seg.confusion:worst_confusion_pairs[].value
+class_metrics_table:
+  title: Class Metrics
+  filename: class_metrics.csv
+  in:
+    rows: eval.sem_seg.confusion:class_rows
+summary:
+  _target_: teia.node.eval.view.summary.Summary
+  in: [eval.sem_seg.confusion]

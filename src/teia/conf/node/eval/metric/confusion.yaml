@@ -1,0 +1,4 @@
+_target_: teia.node.eval.metric.aligned.confusion.Confusion
+multi_label: false
+worst_k: 5
+threshold: 0.5

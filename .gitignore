@@ -1,0 +1,50 @@
+# Data and runs
+data/*
+runs/*
+.data/
+
+# Byte-compiled
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Tests
+.pytest_cache/
+tests/output/
+
+# Cache
+.teia-cache/
+.cache/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Environment
+.env
+.venv
+venv/
+
+# IDE settings
+.idea/
+.vscode/
+*.swp
+
+# AI Agent (teia-managed skill links are recreated by `teia init`)
+.codex
+.claude/*
+.agents
+plans/*
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Demo data and runs
+demo/data/
+demo/runs/
+demo/.teia-cache/
+
+# Local virtual environments
+.venv*/

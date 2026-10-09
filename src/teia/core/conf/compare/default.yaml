@@ -1,0 +1,13 @@
+# Zero-config cross-run comparison; behaviour and customization in core/eval.md §4.8.
+compare:
+  metric_table:
+    _target_: teia.node.eval.compare.metric_table.MetricTable
+
+  curve_overlay:
+    _target_: teia.node.eval.compare.curve_overlay.CurveOverlay
+
+  factor_diff:
+    _target_: teia.node.eval.compare.factor_diff.FactorDiff
+
+  seed_aggregate:
+    _target_: teia.node.eval.compare.seed_aggregate.SeedAggregate

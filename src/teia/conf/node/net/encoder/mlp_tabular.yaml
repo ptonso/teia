@@ -1,0 +1,5 @@
+_target_: teia.node.net.one_to_one.agnostic.mlp.MLP
+hidden:
+- 64
+- 64
+activation: relu

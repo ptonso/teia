@@ -1,0 +1,14 @@
+defaults:
+  - /node/eval/metric@threshold_optimization: threshold_optimization
+  - /node/eval/view@decision_rule_table: table
+  - _self_
+
+threshold_optimization:
+  in: [capture.cls.scores, batch.cls, meta.class_names]
+  out: eval.decision_rule
+  split: val
+decision_rule_table:
+  title: Decision Rule
+  filename: decision_rule.csv
+  in:
+    rows: eval.decision_rule:rows

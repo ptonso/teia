@@ -1,0 +1,2 @@
+_target_: teia.node.data.transform.rasterize.RasterizeInstanceMasks
+mask_downsample_ratio: 4

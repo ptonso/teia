@@ -1,0 +1,8 @@
+accelerator: auto
+devices: 1
+max_epochs: ${oc.select:epochs,100}
+precision: 32-true
+enable_model_summary: false
+accumulate_grad_batches: 1
+check_val_every_n_epoch: 1
+log_every_n_steps: 50

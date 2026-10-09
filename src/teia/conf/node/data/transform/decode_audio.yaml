@@ -1,0 +1,3 @@
+_target_: teia.node.data.transform.decode.DecodeAudio
+sample_rate: 16000
+duration: 4.0

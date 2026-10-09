@@ -1,0 +1,5 @@
+_target_: teia.node.eval.metric.aligned.threshold_optimization.ThresholdOptimization
+mode: auto
+target: f1
+beta: null
+fallback_threshold: 0.5

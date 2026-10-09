@@ -1,0 +1,18 @@
+defaults:
+  - /node/net/stem@stem: flatten
+  - /node/net/encoder@encoder: mlp_image
+  - /node/net/head@head: linear_cls
+  - /node/net/act@act: softmax
+  - /node/net/loss@loss: cross_entropy
+  - /optim@_here_: adam_1e3
+  - _self_
+
+input: {image_size: 32}
+stem: {in: batch.image, out: {feat.flat: [3072]}}
+encoder: {in: feat.flat, out: {feat.x: [128]}}
+head: {in: feat.x, out: {pred.logits: [num_classes]}}
+act: {in: pred.logits, out: {act.probs: null, act.label: null}}
+loss: {in: [pred.logits, batch.cls], out: {loss.cls: null}, weight: 1.0}
+capture:
+  cls.scores: act.probs
+  cls.label: post.act.label

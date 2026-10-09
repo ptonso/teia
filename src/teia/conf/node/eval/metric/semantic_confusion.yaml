@@ -1,0 +1,3 @@
+_target_: teia.node.eval.metric.aligned.semantic_confusion.SemanticConfusion
+ignore_index: 255
+worst_k: 5

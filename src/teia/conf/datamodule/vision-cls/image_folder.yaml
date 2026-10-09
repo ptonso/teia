@@ -1,0 +1,36 @@
+defaults:
+  - /node/data/reader@reader: image_folder_reader
+  - /node/data/transform@encode_label: encode_labels
+  - /node/data/transform@decode: decode_image
+  - /node/data/transform@resize: resize_image
+  - /node/data/transform@normalize: normalize_image
+  - /node/data/collate@col_image: stack_images
+  - /node/data/collate@col_cls: class_labels
+  - _self_
+
+batch_size: 64
+reader:
+  out: [item.img_path, item.class_name]
+encode_label:
+  in: item.class_name
+  out: item.cls
+decode:
+  in: item.img_path
+  out: item.image
+resize:
+  size: ${netmodule.input.image_size}
+  in: item.image
+  out: item.image
+normalize:
+  pixel_norm: unit
+  in: batch.image
+  out: batch.image
+  stage: batch
+col_image:
+  in: item.image
+  out: batch.image
+  stage: batch
+col_cls:
+  in: item.cls
+  out: batch.cls
+  stage: batch

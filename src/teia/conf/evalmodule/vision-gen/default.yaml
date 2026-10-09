@@ -1,0 +1,50 @@
+defaults:
+  - /evalmodule/_shared/run@_here_
+  - /node/eval/metric@frechet: frechet_distance
+  - /node/eval/metric@kernel: kernel_distance
+  - /node/eval/view@frechet_table: table
+  - /node/eval/view@kernel_table: table
+  - /node/eval/metric@diagnostics: gen_diagnostics
+  - /node/eval/view@recon_diagnostics_view: multi_curve_bundle
+  - /node/eval/view@kld_diagnostics_view: multi_curve_bundle
+  - _self_
+
+frechet:
+  out: eval.gen.frechet
+  in:
+    pred_paths: capture.gen.image
+    real_paths: batch.image
+kernel:
+  out: eval.gen.kernel
+  in:
+    pred_paths: capture.gen.image
+    real_paths: batch.image
+frechet_table:
+  title: Frechet Distance
+  filename: frechet_distance.csv
+  in:
+    rows: eval.gen.frechet:rows
+kernel_table:
+  title: Kernel (MMD) Distance
+  filename: kernel_distance.csv
+  in:
+    rows: eval.gen.kernel:rows
+diagnostics:
+  out: eval.gen.diagnostics
+recon_diagnostics_view:
+  title: Reconstruction Error per Pixel
+  x_label: epoch
+  y_label: recon_pixel
+  filename: gen_recon_pixel_curve.png
+  in:
+    curves: eval.gen.diagnostics:recon_curves
+kld_diagnostics_view:
+  title: KL Divergence per Latent Dim
+  x_label: epoch
+  y_label: kld_per_dim
+  filename: gen_kld_per_dim_curve.png
+  in:
+    curves: eval.gen.diagnostics:kld_curves
+summary:
+  _target_: teia.node.eval.view.summary.Summary
+  in: [eval.gen.frechet, eval.gen.kernel]

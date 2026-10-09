@@ -1,0 +1,15 @@
+defaults:
+  - /node/net/encoder@encoder: mlp_tabular
+  - /node/net/head@head: linear_cls
+  - /node/net/act@act: softmax
+  - /node/net/loss@loss: cross_entropy
+  - /optim@_here_: adam_1e3
+  - _self_
+
+encoder: {in: batch.numerical, out: {feat.x: [64]}}
+head: {in: feat.x, out: {pred.logits: [num_classes]}}
+act: {in: pred.logits, out: {act.probs: null, act.label: null}}
+loss: {in: [pred.logits, batch.cls], out: {loss.cls: null}, weight: 1.0}
+capture:
+  cls.scores: act.probs
+  cls.label: post.act.label

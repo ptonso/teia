@@ -1,0 +1,3 @@
+_target_: teia.node.data.transform.augment.SpecAugment
+freq_mask_param: 12
+time_mask_param: 24

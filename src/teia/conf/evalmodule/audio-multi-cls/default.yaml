@@ -1,0 +1,91 @@
+defaults:
+  - /evalmodule/_shared/run@_here_
+  - /evalmodule/_shared/decision_rule@_here_
+  - /node/eval/metric@confusion: confusion
+  - /node/eval/metric@ap: ranked_average_precision
+  - /node/eval/view@per_label_f1_bar: ranked_bar
+  - /node/eval/view@label_prevalence_vs_f1_scatter: scatter_plot
+  - /node/eval/view@tn_masked_confusion_grid: binary_confusion_grid
+  - /node/eval/view@per_label_ap_bar: ranked_bar
+  - /node/eval/view@pr_curves_view: multi_curve_bundle
+  - /node/eval/view@roc_curves_view: multi_curve_bundle
+  - /node/eval/view@threshold_sweep_view: threshold_curve
+  - /node/eval/view@sample_metrics_table: table
+  - _self_
+
+confusion:
+  multi_label: true
+  in: [capture.cls.scores, batch.cls, meta.class_names]
+  out: eval.multi_cls.confusion
+  monitor: true
+ap:
+  multi_label: true
+  in: [capture.cls.scores, batch.cls, meta.class_names]
+  out: eval.multi_cls.ap
+per_label_f1_bar:
+  title: Per-Label F1
+  sort: true
+  xlabel: F1
+  bounded_x: true
+  filename: per_label_f1_bar_sorted.png
+  in:
+    labels: eval.multi_cls.confusion:class_rows[].class_name
+    values: eval.multi_cls.confusion:class_rows[].f1
+    support: eval.multi_cls.confusion:class_rows[].support
+label_prevalence_vs_f1_scatter:
+  title: Label Prevalence vs F1
+  x_label: Prevalence
+  y_label: F1
+  filename: label_prevalence_vs_f1_scatter.png
+  in:
+    x: eval.multi_cls.confusion:class_rows[].prevalence
+    y: eval.multi_cls.confusion:class_rows[].f1
+    labels: eval.multi_cls.confusion:class_rows[].class_name
+tn_masked_confusion_grid:
+  title: TN-Masked One-vs-All Confusion Matrices
+  filename: tn_masked_one_vs_all_confusion_matrices.png
+  in:
+    labels: eval.multi_cls.confusion:class_names
+    tp: eval.multi_cls.confusion:confusion_grid.tp
+    fp: eval.multi_cls.confusion:confusion_grid.fp
+    fn: eval.multi_cls.confusion:confusion_grid.fn
+per_label_ap_bar:
+  title: Per-Label Average Precision
+  sort: true
+  xlabel: Average Precision
+  bounded_x: true
+  filename: per_label_average_precision_bar_sorted.png
+  in:
+    labels: eval.multi_cls.ap:class_rows[].class_name
+    values: eval.multi_cls.ap:class_rows[].average_precision
+pr_curves_view:
+  title: 'PR Curves: Macro and Worst Labels'
+  x_label: Recall
+  y_label: Precision
+  filename: pr_curves_macro_and_worst_k_labels.png
+  in:
+    curves: eval.multi_cls.ap:pr_curves
+roc_curves_view:
+  title: One-vs-All ROC Curves per Label
+  x_label: False Positive Rate
+  y_label: True Positive Rate
+  baseline: diagonal
+  filename: one_vs_all_roc_curves_per_label.png
+  in:
+    curves: eval.multi_cls.ap:roc_curves
+threshold_sweep_view:
+  title: Threshold vs Micro and Macro F1
+  x_label: Threshold
+  y_label: F1
+  filename: threshold_vs_micro_macro_f1_curve.png
+  in:
+    x: eval.multi_cls.ap:threshold_sweep[].threshold
+    series: eval.multi_cls.ap:threshold_sweep_series
+sample_metrics_table:
+  title: Sample Metrics
+  filename: sample_metrics.csv
+  in:
+    rows: eval.multi_cls.confusion:sample_rows
+summary:
+  _target_: teia.node.eval.view.summary.Summary
+  in: [eval.multi_cls.confusion, eval.multi_cls.ap]

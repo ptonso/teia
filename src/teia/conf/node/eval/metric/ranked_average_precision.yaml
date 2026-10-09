@@ -1,0 +1,4 @@
+_target_: teia.node.eval.metric.aligned.ranked_average_precision.RankedAveragePrecision
+multi_label: false
+top_k: 3
+worst_k: 5

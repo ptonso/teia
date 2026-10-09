@@ -1,0 +1,87 @@
+defaults:
+  - /evalmodule/_shared/run@_here_
+  - /evalmodule/_shared/decision_rule@_here_
+  - /node/eval/metric@confusion: confusion
+  - /node/eval/metric@ap: ranked_average_precision
+  - /node/eval/metric@calibration: calibration
+  - /node/eval/view@confusion_matrix_view: matrix_heatmap
+  - /node/eval/view@per_class_f1_bar: ranked_bar
+  - /node/eval/view@top_confusion_pairs_bar: ranked_bar
+  - /node/eval/view@pr_curves_view: multi_curve_bundle
+  - /node/eval/view@per_class_ap_bar: ranked_bar
+  - /node/eval/view@reliability_diagram_view: calibration_diagram
+  - /node/eval/view@confidence_histogram_view: grouped_histogram
+  - /node/eval/view@sample_metrics_table: table
+  - _self_
+
+confusion:
+  in: [capture.cls.scores, batch.cls, meta.class_names]
+  out: eval.cls.confusion
+  monitor: true
+ap:
+  in: [capture.cls.scores, batch.cls, meta.class_names]
+  out: eval.cls.ap
+calibration:
+  in: [capture.cls.scores, batch.cls]
+  out: eval.cls.calibration
+confusion_matrix_view:
+  title: Normalized Confusion Matrix
+  filename: normalized_confusion_matrix.png
+  in:
+    matrix: eval.cls.confusion:confusion_matrix_normalized
+    x_labels: eval.cls.confusion:class_names
+    y_labels: eval.cls.confusion:class_names
+per_class_f1_bar:
+  title: Per-Class F1
+  sort: true
+  xlabel: F1
+  filename: per_class_f1_bar_sorted.png
+  in:
+    labels: eval.cls.confusion:class_rows[].class_name
+    values: eval.cls.confusion:class_rows[].f1
+    support: eval.cls.confusion:class_rows[].support
+top_confusion_pairs_bar:
+  title: Top Confusion Pairs
+  sort: true
+  xlabel: Count
+  filename: top_confusion_pairs_bar.png
+  in:
+    labels: eval.cls.confusion:top_confusion_pairs[].pair
+    values: eval.cls.confusion:top_confusion_pairs[].count
+pr_curves_view:
+  title: 'PR Curves: Macro and Worst Classes'
+  x_label: Recall
+  y_label: Precision
+  filename: pr_curves_macro_and_worst_k_classes.png
+  in:
+    curves: eval.cls.ap:pr_curves
+per_class_ap_bar:
+  title: Per-Class Average Precision
+  sort: true
+  xlabel: Average Precision
+  bounded_x: true
+  filename: per_class_average_precision_bar_sorted.png
+  in:
+    labels: eval.cls.ap:class_rows[].class_name
+    values: eval.cls.ap:class_rows[].average_precision
+reliability_diagram_view:
+  title: Reliability Diagram
+  filename: reliability_diagram.png
+  in:
+    mean_confidence: eval.cls.calibration:reliability_diagram.mean_confidence
+    empirical_accuracy: eval.cls.calibration:reliability_diagram.empirical_accuracy
+    counts: eval.cls.calibration:reliability_diagram.counts
+confidence_histogram_view:
+  title: 'Confidence Histogram: Correct vs Incorrect'
+  x_label: Confidence
+  filename: confidence_histogram_correct_vs_incorrect.png
+  in:
+    groups: eval.cls.calibration:confidence_histogram
+sample_metrics_table:
+  title: Sample Metrics
+  filename: sample_metrics.csv
+  in:
+    rows: eval.cls.confusion:sample_rows
+summary:
+  _target_: teia.node.eval.view.summary.Summary
+  in: [eval.cls.confusion, eval.cls.ap, eval.cls.calibration]

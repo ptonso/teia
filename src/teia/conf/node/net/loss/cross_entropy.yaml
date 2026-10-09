@@ -1,0 +1,2 @@
+_target_: teia.node.net.loss.cross_entropy.CrossEntropyLoss
+label_smoothing: 0.0

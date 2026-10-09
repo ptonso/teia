@@ -1,0 +1,2 @@
+_target_: teia.node.eval.metric.aligned.horizon_error.HorizonError
+levels: [0.5]

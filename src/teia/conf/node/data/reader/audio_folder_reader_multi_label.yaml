@@ -1,0 +1,3 @@
+_target_: teia.node.data.reader.audio.AudioFolderReader
+class_name_mode: basename
+multi_label: true

@@ -1,0 +1,3 @@
+_target_: teia.node.data.transform.augment.SanitizeBoxes
+min_size: 2.0
+min_area: 4.0

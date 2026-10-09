@@ -1,0 +1,4 @@
+_target_: teia.node.eval.metric.unpaired.frechet_distance.FrechetDistance
+device: cpu
+feature_extractor:
+  _target_: teia.node.eval.metric.unpaired.features.FlattenFeatures

@@ -1,0 +1,2 @@
+_target_: teia.node.data.reader.image_folder.ImageFolderReader
+class_name_mode: basename

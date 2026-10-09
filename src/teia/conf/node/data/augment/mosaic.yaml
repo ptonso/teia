@@ -1,0 +1,3 @@
+_target_: teia.node.data.transform.augment.Mosaic
+close_mosaic: 10
+p: 1.0

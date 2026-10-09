@@ -1,0 +1,55 @@
+defaults:
+  - /evalmodule/_shared/run@_here_
+  - /node/eval/metric@match: instance_match
+  - /node/eval/kernel@match.similarity: oks
+  - /node/eval/metric@ap: ranked_average_precision
+  - /node/eval/view@per_class_ap_bar: ranked_bar
+  - /node/eval/view@pr_curves_view: multi_curve_bundle
+  - /node/eval/view@per_class_ap_table: table
+  - _self_
+
+ctx:
+  conf: 0.001
+  iou: 0.7
+  max_det: 300
+match:
+  in: [capture.det.keypoints, capture.det.category, capture.det.score, capture.det.sample_idx, batch.keypoints, batch.cls, batch.batch_idx]
+  out: eval.pose.matched
+  pred:
+    geometry: capture.det.keypoints
+    category: capture.det.category
+    score: capture.det.score
+    index: capture.det.sample_idx
+  gt:
+    geometry: batch.keypoints
+    category: batch.cls
+    index: batch.batch_idx
+ap:
+  is_fitness: true
+  in: [eval.pose.matched]
+  out: eval.pose.ap
+  monitor: true
+per_class_ap_bar:
+  title: Per-Class Average Precision
+  sort: true
+  xlabel: Average Precision
+  bounded_x: true
+  filename: per_class_average_precision_bar_sorted.png
+  in:
+    labels: eval.pose.ap:per_category[].category
+    values: eval.pose.ap:per_category[].average_precision
+pr_curves_view:
+  title: PR Curves per Class
+  x_label: Recall
+  y_label: Precision
+  filename: pr_curves_per_class.png
+  in:
+    curves: eval.pose.ap:pr_curves
+per_class_ap_table:
+  title: Per-Class Average Precision
+  filename: per_class_average_precision.csv
+  in:
+    rows: eval.pose.ap:per_category
+summary:
+  _target_: teia.node.eval.view.summary.Summary
+  in: [eval.pose.ap]

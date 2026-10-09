@@ -1,0 +1,2 @@
+_target_: teia.node.data.transform.schema.Categorical
+task: ${datamodule.schema.task}
