@@ -116,6 +116,12 @@ teia train task=vision-cls data_root=/ds/pets netmodule.lr=1e-3             # va
 
 A node swap replaces the leaf's `_target_` and parameters and keeps the module's wiring (`in`, `out`) and any parameter the module sets. Value overrides of keys present in the composed config stay unprefixed, and an absent key needs `++`.
 
+### Config layers
+
+Composition searches several layers with the same group layout: the core skeleton (`teia/core/conf`), the project overlay (`<project>/conf`), and the `conf/` of every installed package, `teia` and each plugin. A config path names one file in one layer, so no layer overrides another.
+- **Every selected option is checked.** After composition, each option the run selects (task, modules, every mounted leaf, every system group) is looked up in every layer, and a path found in more than one fails the run with the path and the layers that ship it. A project file at the path of an installed option is such a clash: give it a new name and select it.
+- **Every duplicate is reported.** `teia config lint` reports each path shipped by more than one layer as `duplicate`, selected or not, and `teia plugin check` turns one in the plugin's own files into an error ([plugin](../plugin.md)).
+
 ### data_root
 
 - **The only dataset-location key.** Dataset location is the top-level `data_root=…`, with no aliases. The engine resolves it relative to the project dir (a file path collapses to its parent, and a missing path raises) and passes it to the datamodule as its `data_root` kwarg. Reader and transform nodes resolve their node-level `root` under it. Streaming datamodules that declare `requires_data_root = False` need none.
@@ -143,6 +149,7 @@ It never duplicates the package tree. `teia train` snapshots only the project ov
 - A node leaf MUST NOT carry a `# @package` header, `in` or `out`. A packaged module MUST NOT carry a `_target_` and MUST live under `<graph>module/<task>/`. This is checked by `teia config lint`.
 - A mount alias MUST NOT contain `_group_` or `_name_`: Hydra substitutes those inside package paths, so `@km_by_risk_group_view` silently mounts elsewhere. This is checked by `teia config lint`.
 - A task preset MUST follow [task](task.md#constraints).
+- A config path MUST exist in only one layer. A run that selects a path found in more than one layer fails before training.
 - There MUST be no custom composition resolver. Overrides use native Hydra only.
 - There MUST be no `domain` or `task` string field that routes behavior. The task is identified only by `task._target_`.
 - Dataset-derived dims (`num_classes`, `num_targets`) MUST use `out` dim-refs, not `${…}` interpolation.

@@ -55,9 +55,8 @@ def root(tmp_path: Path) -> Path:
     _write(tmp_path / "LICENSE", "Apache")
     _write(tmp_path / "hydra_plugins/myproj_searchpath.py", "")
     _write(tmp_path / "src/myproj/node/net/one_to_one/grid/conv.py", NODE)
-    _write(tmp_path / "src/myproj/conf/node/net/encoder/myproj/conv.yaml", "_target_: myproj.node.net.one_to_one.grid.conv.Conv\n")
-    _write(tmp_path / "src/myproj/conf/netmodule/vision-cls/myproj/conv.yaml", "encoder: {in: batch.image, out: {feat.x: [8]}}\n")
-    _write(tmp_path / "src/myproj/conf/task/myproj/vision-cls.yaml", "# @package _global_\ntask: {_target_: teia.task.vision_cls.VisionCls}\n")
+    _write(tmp_path / "src/myproj/conf/node/net/encoder/conv.yaml", "_target_: myproj.node.net.one_to_one.grid.conv.Conv\n")
+    _write(tmp_path / "src/myproj/conf/netmodule/vision-cls/conv.yaml", "encoder: {in: batch.image, out: {feat.x: [8]}}\n")
     return tmp_path
 
 
@@ -70,7 +69,6 @@ def _static(root: Path, *, publish: bool = False) -> list[checker.Finding]:
         + checker.check_targets(plugin)
         + checker.check_docstrings(plugin)
         + checker.check_package(plugin)
-        + checker.check_conf_owner(plugin)
     )
 
 
@@ -91,11 +89,8 @@ def test_a_conforming_tree_has_no_static_finding(root: Path) -> None:
         (lambda r: _write(r / "hydra_plugins/__init__.py", ""), ("error", "searchpath")),
         (lambda r: (r / "hydra_plugins/myproj_searchpath.py").unlink(), ("error", "searchpath")),
         (lambda r: _write(r / "pyproject.toml", PYPROJECT.replace('"*" = ["**/*.yaml"]', '"*" = ["*.txt"]')), ("error", "searchpath")),
-        (lambda r: _write(r / "src/myproj/conf/node/net/encoder/conv.yaml", "_target_: x.Y\n"), ("error", "conf-owner")),
-        (lambda r: _write(r / "src/myproj/conf/netmodule/vision-cls/conv.yaml", "{}\n"), ("error", "conf-owner")),
-        (lambda r: _write(r / "src/myproj/conf/task/vision-cls.yaml", "{}\n"), ("error", "conf-owner")),
-        (lambda r: _write(r / "src/myproj/conf/node/net/encoder/myproj/conv.yaml", "_target_: myproj.node.net.one_to_one.grid.conv.Missing\n"), ("error", "target")),
-        (lambda r: _write(r / "src/myproj/conf/node/net/encoder/myproj/conv.yaml", "_target_: myproj.node.absent.Conv\n"), ("error", "target")),
+        (lambda r: _write(r / "src/myproj/conf/node/net/encoder/conv.yaml", "_target_: myproj.node.net.one_to_one.grid.conv.Missing\n"), ("error", "target")),
+        (lambda r: _write(r / "src/myproj/conf/node/net/encoder/conv.yaml", "_target_: myproj.node.absent.Conv\n"), ("error", "target")),
         (lambda r: _write(r / "src/myproj/node/net/one_to_one/grid/conv.py", NODE.replace("Source: common knowledge\n", "")), ("error", "docstring")),
         (lambda r: _write(r / "src/myproj/node/net/one_to_one/grid/conv.py", NODE.replace('    """A node."""\n', "    pass\n")), ("error", "docstring")),
     ],
@@ -131,8 +126,8 @@ def test_component_kind_compares_like_with_like() -> None:
     assert checker.component_kind("teia.node.eval.metric.aligned.x.Y") == ("eval", "metric")
 
 
-def test_the_shared_namespace_skips_ownership_and_missing_shared_modules(root: Path) -> None:
-    _write(root / "src/myproj/conf/node/net/encoder/myproj/conv.yaml", "_target_: myproj.node.elsewhere.Conv\n")
+def test_the_shared_namespace_skips_missing_shared_modules(root: Path) -> None:
+    _write(root / "src/myproj/conf/node/net/encoder/conv.yaml", "_target_: myproj.node.elsewhere.Conv\n")
     plugin = checker.load_plugin(root)
     assert checker.check_targets(plugin, shared=True) == []
     assert ("error", "target") in _rules(checker.check_targets(plugin))

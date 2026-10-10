@@ -6,7 +6,7 @@ import re
 
 import yaml
 
-from teia.core.config.layers import ConfLayout, resolve_conf_layout
+from teia.core.config.layers import ConfLayout, duplicate_paths, resolve_conf_layout
 
 _PACKAGE_DIRECTIVE_RE = re.compile(r"^#\s*@package\s")
 _PACKAGE_ADDRESS_RE = re.compile(r"^#\s*@package\s+(\S+)\s*$")
@@ -174,4 +174,9 @@ def run_lint(project_dir: Path) -> list[LintFinding]:
         for path, root in _layer_files(layout, group):
             if root != project:  # a project module may name a custom executor and live anywhere
                 findings += [check_module(path), check_module_folder(path, root, tasks)]
+    findings += [
+        LintFinding(path=layer.path / rel, rule="duplicate", message=f"{rel} also exists in {', '.join(other.label for other in layers if other is not layer)}; rename one copy.")
+        for rel, layers in duplicate_paths(layout).items()
+        for layer in layers
+    ]
     return [finding for finding in findings if finding is not None]

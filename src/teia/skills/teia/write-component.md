@@ -55,13 +55,13 @@ When `Source:` cites a paper, the paper decides the shape. Read it for the gener
 
 ## 5. Wire it in
 
-Write a leaf in the owner folder that points at the class (`_target_: <package>.node.net...<Class>`) with its arguments, mount it in a module with the right `in` and `out`, and select the module ([write-config](write-config.md)). Reuse the surrounding installed leaves for everything else, so that the diff between your experiment and an installed setup is the component alone.
+Write a leaf with a new name at `node/<graph>/<kind>/<name>.yaml` that points at the class (`_target_: <package>.node.net...<Class>`) with its arguments, mount it in a module with the right `in` and `out`, and select the module ([write-config](write-config.md)). Reuse the surrounding installed leaves for everything else, so that the diff between your experiment and an installed setup is the component alone.
 
 ## 6. Check it
 
 1. Instantiate the class alone and run it on a random tensor shaped like its input. This catches shape and dtype mistakes before Teia's machinery is involved.
 2. Run `teia config lint`, then the one-batch pre-flight on the real data ([validate in layers](SKILL.md#ground-rules)). Wiring errors name the node and key: a missing producer, a duplicate output key, a cycle, an unresolvable dimension name, or a capture atom that the contract requires and the map lacks.
 3. If Teia reports a missing third-party package, it prints the `pip install` line. Install it, add it to the plugin's `pyproject.toml`, and rerun.
-4. Run `teia plugin check`: it confirms the docstring, the base class, the owner folder and the declared dependencies.
+4. Run `teia plugin check`: it confirms the docstring, the base class, the declared dependencies, and that no config path clashes with an installed one.
 
 Then tell the user what you wrote, where it sits and why that folder, which neighbour you modelled it on, and how you checked it.

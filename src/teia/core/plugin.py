@@ -125,21 +125,6 @@ def check_searchpath(plugin: Plugin) -> list[Finding]:
     return findings
 
 
-def owner_index(group: str) -> int:
-    return 3 if group == "node" else 2 if group in MODULE_GROUPS else 1
-
-
-def check_conf_owner(plugin: Plugin) -> list[Finding]:
-    findings = []
-    for path in conf_files(plugin.conf):
-        parts = path.relative_to(plugin.conf).parts
-        index = owner_index(parts[0])
-        if len(parts) <= index + 1 or parts[index] != plugin.package:
-            expected = "/".join([*parts[:index], plugin.package, "..."])
-            findings.append(Finding("error", "conf-owner", path, f"must live under {expected}"))
-    return findings
-
-
 def check_targets(plugin: Plugin, *, shared: bool = False) -> list[Finding]:
     """In the shared ``teia`` namespace a module missing from the tree may come from ``teia`` itself (target-import decides)."""
     findings = []
@@ -268,18 +253,13 @@ def check_base_classes(plugin: Plugin) -> list[Finding]:
 def check_duplicates(plugin: Plugin, layers: list[tuple[str, Path]]) -> list[Finding]:
     own = plugin.conf.resolve()
     others = [(label, path) for label, path in layers if path != own]
-    other_files = {path.relative_to(root).as_posix(): label for label, root in others for path in conf_files(root)}
-    findings = [
-        Finding("error", "conf-duplicate", path, f"{path.relative_to(plugin.conf).as_posix()} also exists in {other_files[path.relative_to(plugin.conf).as_posix()]}")
-        for path in conf_files(plugin.conf)
-        if path.relative_to(plugin.conf).as_posix() in other_files
-    ]
 
     own_tasks = {p.stem.replace("_", "-"): p for p in (plugin.src / "task").glob("*.py") if not p.name.startswith("_")}
     other_tasks = contract_tasks(exclude=plugin.src / "task") | {p.stem for _, root in others for p in conf_files(root / "task")}
-    findings += [Finding("error", "task-duplicate", path, f"task {name} already exists in another provider") for name, path in own_tasks.items() if name in other_tasks]
+    findings = [Finding("error", "task-duplicate", path, f"task {name} already exists in another provider") for name, path in own_tasks.items() if name in other_tasks]
 
     other_targets = [target for _, root in others for _, target in conf_targets(root / "node")]
+    other_targets = [target for target in other_targets if not (module_origin(target.rpartition(".")[0]) or Path("/")).is_relative_to(plugin.root)]
     other_classes = {target.rsplit(".", 1)[-1]: target for target in other_targets}
     for path in component_modules(plugin):
         for node in ast.parse(path.read_text(encoding="utf-8")).body:
@@ -328,17 +308,22 @@ def check_provider(plugin: Plugin, composed: list[tuple[Path, str, Any]], *, pub
 
 
 def compositions(plugin: Plugin) -> list[tuple[Path, str, Any]]:
-    """Compose every task preset and module the plugin ships: ``(file, override, config or the exception raised)``."""
+    """Compose every task preset and module the plugin ships, a module on top of its task's preset when one exists: ``(file, overrides, config or the exception raised)``."""
     from teia.core.runtime.composer import compose_project_config
 
-    selections = [(path, f"task={path.relative_to(plugin.conf / 'task').with_suffix('').as_posix()}") for path in conf_files(plugin.conf / "task")]
+    presets = {path.stem for _, root in conf_layers() for path in conf_files(root / "task")}
+    selections = [(path, [f"task={path.relative_to(plugin.conf / 'task').with_suffix('').as_posix()}"]) for path in conf_files(plugin.conf / "task")]
     for group in MODULE_GROUPS:
-        selections += [(path, f"{group}={path.relative_to(plugin.conf / group).with_suffix('').as_posix()}") for path in conf_files(plugin.conf / group)]
+        for path in conf_files(plugin.conf / group):
+            option = path.relative_to(plugin.conf / group).with_suffix("").as_posix()
+            task = option.split("/")[0]
+            selections.append((path, [f"task={task}"] * (task in presets) + [f"{group}={option}"]))
     results = []
     with tempfile.TemporaryDirectory() as tmp:
-        for path, override in selections:
+        for path, overrides in selections:
+            override = " ".join(overrides)
             try:
-                results.append((path, override, compose_project_config(project_dir=Path(tmp), overrides=[override, "data_root=data"])))
+                results.append((path, override, compose_project_config(project_dir=Path(tmp), overrides=[*overrides, "data_root=data"])))
             except Exception as exc:  # noqa: BLE001 - every failure is a finding
                 results.append((path, override, exc))
     return results
@@ -366,7 +351,7 @@ def check(root: Path, *, publish: bool = False, namespace: str | None = None) ->
     findings = check_pyproject(plugin) + check_license_file(plugin, publish=publish) + check_searchpath(plugin)
     findings += check_targets(plugin, shared=shared) + check_docstrings(plugin)
     if not shared:
-        findings += check_package(plugin) + check_conf_owner(plugin)
+        findings += check_package(plugin)
     installed = check_installed(plugin)
     if installed:
         return findings + installed

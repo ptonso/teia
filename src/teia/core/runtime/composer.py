@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from teia.core.config.layers import resolve_conf_layout
+from teia.core.config.layers import raise_if_ambiguous, resolve_conf_layout
 from teia.core.utils import get_dot_path, parse_override, read_yaml, slugify
 
 
@@ -82,6 +82,7 @@ def compose_overlay_config(
             hydra_config = compose(config_name="config", overrides=compose_overrides, return_hydra_config=True)
     finally:
         GlobalHydra.instance().clear()
+    raise_if_ambiguous(layout, OmegaConf.to_container(hydra_config.hydra.runtime.choices))
 
     composed = OmegaConf.to_container(config, resolve=True)
     if not isinstance(composed, dict):

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import importlib
 from pathlib import Path
+from typing import Any, Mapping
 
 CORE_CONFIG_PACKAGE = "teia.core"
 
@@ -82,3 +83,32 @@ def resolve_conf_layout(project_dir: Path, config_dir: Path | None = None) -> Co
         searchpath.append(_layer("project", overlay_root))
     searchpath.extend(plugin_conf_layers())
     return ConfLayout(primary=primary, searchpath=searchpath)
+
+
+def duplicate_paths(layout: ConfLayout) -> dict[str, list[ConfLayer]]:
+    """Every config path that more than one layer ships, with the layers that ship it."""
+    found: dict[str, list[ConfLayer]] = {}
+    for layer in layout.ordered:
+        for path in layer.path.rglob("*.yaml"):
+            found.setdefault(path.relative_to(layer.path).as_posix(), []).append(layer)
+    return {rel: layers for rel, layers in found.items() if len(layers) > 1}
+
+
+def raise_if_ambiguous(layout: ConfLayout, choices: Mapping[str, Any]) -> None:
+    """Fail when an option the run selects exists in more than one layer.
+
+    Hydra would silently take the first layer on its search path, so a project file or a second package at the
+    same path would change a run without notice. Only selected options are checked: a clash on an unused option
+    is reported by ``teia config lint`` and does not block runs."""
+    selected = ["config.yaml"] + [
+        f"{key.split('@')[0]}/{value}.yaml"
+        for key, values in choices.items()
+        if not key.startswith("hydra/")
+        for value in (values if isinstance(values, (list, tuple)) else [values])
+        if value is not None
+    ]
+    clashes = {rel: [layer.label for layer in layout.ordered if (layer.path / rel).is_file()] for rel in selected}
+    clashes = {rel: labels for rel, labels in clashes.items() if len(labels) > 1}
+    if clashes:
+        lines = "\n".join(f"  {rel} is shipped by {' and '.join(labels)}" for rel, labels in clashes.items())
+        raise ValueError(f"Selected config options exist in more than one layer:\n{lines}\nA config path must be unique across installed packages and the project: rename one copy.")

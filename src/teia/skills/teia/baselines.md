@@ -17,7 +17,7 @@ Many baselines of one family (twenty detectors, every backbone of one library) n
 ## Where the code lives
 
 1. **Look before writing.** Search the installed packages for a component that already wraps the same upstream ([inspect](inspect.md#does-it-already-exist)). If one exists, depend on its package.
-2. **A wrapper used by this project** lives in this project's plugin, under `src/<package>/node/`, with its configs in the owner folders ([make-a-plugin](make-a-plugin.md#layout)).
+2. **A wrapper used by this project** lives in this project's plugin, under `src/<package>/node/`, with its configs at the matching paths in `src/<package>/conf/` ([make-a-plugin](make-a-plugin.md#layout)).
 3. **A wrapper several projects need** belongs in its own small plugin, named after the library it wraps. Propose this to the user; do not create it on your own.
 4. **The upstream code itself** is installed as a pinned dependency: a released version, or `name @ git+<repository>@<commit>` in `pyproject.toml`. Copy upstream source into the project only when it cannot be installed and its license allows copying, and keep it unmodified under `third_party/<name>/` with its license file.
 5. **Copyleft code** (GPL, AGPL) imposes its license on whatever includes it. Tell the user before wrapping it, because it decides the license of the plugin.

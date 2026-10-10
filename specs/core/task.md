@@ -94,4 +94,5 @@ The conformance test discovers the new folders by path. To add an architecture t
 - Every task preset MUST have at least one end-to-end run script that uses the preset alone.
 - A module folder `<graph>module/<task>/` MUST name a task that has a contract in `teia.task` or a preset in `task/`. Config lint enforces it.
 - A module MUST NOT select another module, and a task preset MUST NOT select another task.
+- A task MUST have at most one preset across all installed packages. A package that does not ship it adds modules to the task instead.
 
