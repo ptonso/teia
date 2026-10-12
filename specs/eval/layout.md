@@ -34,7 +34,8 @@ teia/node/eval/
     aligned/<component>.py     # confusion, ranked_ap, calibration, instance_match,
                                #   residuals, horizon_error, concordance, km_estimate, episode_aggregate,
                                #   semantic_confusion, threshold_optimization (per-class thresholds for multi-hot targets, per-class score weights for class-index targets)
-    unpaired/<component>.py    # frechet_distance, kernel_distance, distribution_test
+    unpaired/<component>.py    # frechet_distance, kernel_distance, distribution_test;
+                               #   features, inception (feature extractors, sub-parts of a metric)
     run/<component>.py         # training_curves, gen_diagnostics, target_summary (read no predictions)
   view/<component>.py          # ranked_bar, matrix_heatmap, scatter_plot, multi_curve_bundle,
                                #   calibration_diagram, threshold_curve, grouped_histogram,
@@ -52,6 +53,25 @@ Metrics sub-group by pairing. `aligned/` has per-sample correspondence, and `unp
 There is deliberately no second `assumes` level like `teia.node.net`'s. An net node accepts one typed input, but an eval metric consumes a record of roles, and a single-valued folder label would recreate the bundling that `FIELD_VOCAB` dissolves for `batch.*`. Roles are declared by `in` keys.
 
 Matching is a metric, not a kind. An instance matcher takes declared keys in and publishes one declared key out, and after matching everything downstream is `aligned`.
+
+### Feature extractors
+
+The unpaired metrics embed images through a nested `feature_extractor`: a plain `nn.Module` mapping `(N, 3, H, W)` in `[0, 1]` to `(N, D)`, with a class attribute `identity` naming the network and its weights. `FlattenFeatures` (`features.py`) is the dependency-free default for tests, and `InceptionPool3` (`inception.py`, extra `fid`) is the standard FID network: pytorch-fid's port of the TensorFlow Inception-V3, pool3, bilinear resize to 299 inside the network. An extractor that downloads weights pins the URL and the full sha256 in its module, caches the file under `torch.hub.get_dir()/checkpoints/`, and verifies the hash on every construction.
+
+### Reference statistics
+
+A large real set is embedded once into a `.npz` holding `mu (D,)`, `sigma (D, D)`, `n` and `extractor` (the identity string), written by `frechet_distance.reference_statistics` and `save_reference`, typically by a dataset script. `FrechetDistance(reference=<path>)` reads the real side from it instead of `real_paths`; exactly one of the two is wired.
+
+```yaml
+gfid:
+  _target_: teia.node.eval.metric.unpaired.frechet_distance.FrechetDistance
+  reference: ${data_root}/fid/inception_pool3_train.npz
+  feature_extractor: {_target_: teia.node.eval.metric.unpaired.inception.InceptionPool3}
+  in: {pred_paths: capture.gen.image}
+  out: eval.gen.gfid
+```
+
+`KernelDistance` averages the unbiased MMD^2 over random subset pairs (`subsets`, `subset_size`), so memory stays at `subset_size^2`. Its `kernel` is `poly3` (KID with `InceptionPool3`) or `rbf`.
 
 ### Views
 
@@ -143,5 +163,7 @@ Place a new component by ABC kind, then by pairing for a metric or by payload ge
 - A view MUST be one of the payload geometries. A tenth geometry needs a renderer, not a one-off plotting function inside a metric.
 - A metric MUST NOT render, and a view MUST NOT compute.
 - `hydra_plugins/` MUST NOT contain an `__init__.py`.
+- A metric given a `reference` whose `extractor` differs from its own extractor's `identity` MUST raise.
+- The `summary` view MUST raise when two inputs publish the same scalar key with different values; `namespace: true` writes each key as `<input atom>.<field>`.
 - Every leaf module MUST expose exactly one public component, and its `_target_` MUST be the canonical `teia.node.eval.<kind>.<component>.<ClassName>` path.
 

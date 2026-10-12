@@ -4,7 +4,9 @@ Plain ``nn.Module`` feature extractors for the unpaired metrics' nested ``featur
 Source: common knowledge
 
 Description:
-  constructor kwarg (see ``frechet_distance.py``/``kernel_distance.py``).
+  constructor kwarg (see ``frechet_distance.py``/``kernel_distance.py``). The contract: a plain
+  ``nn.Module`` mapping ``(N, 3, H, W)`` in ``[0, 1]`` to ``(N, D)``, with a class attribute
+  ``identity`` that reference statistics are checked against. ``inception.py`` holds the FID one.
 
 Not a ``TeiaNode`` subclass. ``run_eval_graph`` instantiates a node's config via plain,
 recursive ``instantiate``, so a nested ``{_target_: ...}`` kwarg resolves automatically for an
@@ -36,6 +38,8 @@ class FlattenFeatures(nn.Module):
     dependency-free default: exact, deterministic, and enough to exercise the unpaired-metric
     mechanism end to end.
     """
+
+    identity = "flatten-mean"
 
     def forward(self, images: torch.Tensor) -> torch.Tensor:
         if images.ndim == 3:

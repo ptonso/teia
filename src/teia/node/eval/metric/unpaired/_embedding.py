@@ -37,8 +37,9 @@ class EmbeddingAccumulator:
     the inference hygiene (``.eval()``, ``torch.no_grad()``, device placement) and image-batch
     construction live in one place."""
 
-    def __init__(self, feature_extractor: Any, *, device: str = "cpu") -> None:
+    def __init__(self, feature_extractor: Any, *, device: str = "cpu", batch_size: int = 32) -> None:
         self.feature_extractor = feature_extractor
+        self.batch_size = int(batch_size)
         self.device = torch.device(device)
         self.feature_extractor.to(self.device)
         self.feature_extractor.eval()
@@ -57,10 +58,10 @@ class EmbeddingAccumulator:
             embedded = embedded.float()
         self._embeddings.append(embedded.cpu().numpy())
 
-    def update_paths(self, paths: list[str], *, batch_size: int = 32) -> None:
+    def update_paths(self, paths: list[str]) -> None:
         valid_paths = [path for path in paths if path]
-        for start in range(0, len(valid_paths), batch_size):
-            chunk = valid_paths[start : start + batch_size]
+        for start in range(0, len(valid_paths), self.batch_size):
+            chunk = valid_paths[start : start + self.batch_size]
             images = torch.stack([load_image_tensor(path) for path in chunk])
             self.update_tensors(images)
 

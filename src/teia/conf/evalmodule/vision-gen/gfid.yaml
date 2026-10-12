@@ -1,0 +1,19 @@
+defaults:
+  - /node/eval/metric@gfid: frechet_inception
+  - /node/eval/view@gfid_table: table
+  - _self_
+
+gfid:
+  reference: ${data_root}/fid/inception_pool3_train.npz
+  out: eval.gen.gfid
+  in:
+    pred_paths: capture.gen.image
+gfid_table:
+  title: Generation FID
+  filename: gfid.csv
+  in:
+    rows: eval.gen.gfid:rows
+summary:
+  _target_: teia.node.eval.view.summary.Summary
+  namespace: true
+  in: [eval.gen.gfid]

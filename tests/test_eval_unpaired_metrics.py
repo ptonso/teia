@@ -18,7 +18,7 @@ from teia.node.eval.metric.unpaired._embedding import EmbeddingAccumulator, load
 from teia.node.eval.metric.unpaired._shared import frechet_distance, ks_statistic, rbf_mmd_squared
 from teia.node.eval.metric.unpaired.distribution_test import DistributionTest
 from teia.node.eval.metric.unpaired.features import FlattenFeatures
-from teia.node.eval.metric.unpaired.frechet_distance import FrechetDistance
+from teia.node.eval.metric.unpaired.frechet_distance import FrechetDistance, reference_statistics, save_reference
 from teia.node.eval.metric.unpaired.kernel_distance import KernelDistance
 
 
@@ -223,6 +223,68 @@ class NestedTargetResolutionTests(unittest.TestCase):
         metric = instantiate(config)
         self.assertIsInstance(metric, FrechetDistance)
         self.assertIsInstance(metric._pred.feature_extractor, FlattenFeatures)
+
+
+class ReferenceStatisticsTests(unittest.TestCase):
+    def _paths(self, root: Path, n: int, seed: int) -> list[str]:
+        rng = np.random.default_rng(seed)
+        paths = []
+        for index in range(n):
+            path = root / f"{seed}_{index}.png"
+            Image.fromarray(rng.integers(0, 256, (8, 8, 3), dtype=np.uint8)).save(path)
+            paths.append(str(path))
+        return paths
+
+    def test_reference_matches_real_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            pred, real = self._paths(root, 12, 0), self._paths(root, 20, 1)
+            ref = save_reference(root / "ref.npz", reference_statistics(real, FlattenFeatures()))
+            direct = FrechetDistance(FlattenFeatures()).from_source(None, pred_paths=pred, real_paths=real)
+            cached = FrechetDistance(FlattenFeatures(), reference=str(ref)).from_source(None, pred_paths=pred)
+            self.assertAlmostEqual(direct["frechet_distance"], cached["frechet_distance"], places=6)
+            self.assertEqual(cached["n_real"], 20)
+
+    def test_identity_mismatch_raises(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stats = reference_statistics(self._paths(root, 4, 0), FlattenFeatures())
+            ref = save_reference(root / "ref.npz", {**stats, "extractor": "other"})
+            with self.assertRaisesRegex(ValueError, "computed with 'other'"):
+                FrechetDistance(FlattenFeatures(), reference=str(ref))
+
+    def test_exactly_one_real_side(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            paths = self._paths(root, 4, 0)
+            ref = save_reference(root / "ref.npz", reference_statistics(paths, FlattenFeatures()))
+            with self.assertRaisesRegex(ValueError, "exactly one"):
+                FrechetDistance(FlattenFeatures(), reference=str(ref)).from_source(None, pred_paths=paths, real_paths=paths)
+            with self.assertRaisesRegex(ValueError, "exactly one"):
+                FrechetDistance(FlattenFeatures()).from_source(None, pred_paths=paths)
+
+
+class SubsetKernelDistanceTests(unittest.TestCase):
+    def _metric(self, **kwargs) -> KernelDistance:
+        return KernelDistance(FlattenFeatures(), subsets=20, subset_size=50, **kwargs)
+
+    def test_poly3_is_near_zero_for_one_distribution_and_positive_for_shifted(self) -> None:
+        gen = torch.Generator().manual_seed(0)
+        same, shifted = self._metric(), self._metric()
+        a, b = torch.rand((300, 3, 4, 4), generator=gen), torch.rand((300, 3, 4, 4), generator=gen)
+        same.update(pred=a, real=b)
+        shifted.update(pred=a, real=b * 0.5)
+        self.assertLess(abs(same.compute()["mmd_squared"]), 0.01)
+        self.assertGreater(shifted.compute()["mmd_squared"], 0.05)
+
+    def test_subset_size_is_capped_by_the_smaller_set(self) -> None:
+        metric = self._metric(kernel="rbf")
+        metric.update(pred=torch.rand((10, 3, 4, 4)), real=torch.rand((2000, 3, 4, 4)))
+        self.assertIn("mmd_squared_std", metric.compute())
+
+    def test_unknown_kernel_raises(self) -> None:
+        with self.assertRaisesRegex(ValueError, "kernel"):
+            KernelDistance(FlattenFeatures(), kernel="linear")
 
 
 if __name__ == "__main__":

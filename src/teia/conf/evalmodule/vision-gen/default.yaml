@@ -1,34 +1,22 @@
 defaults:
   - /evalmodule/_shared/run@_here_
-  - /node/eval/metric@frechet: frechet_distance
-  - /node/eval/metric@kernel: kernel_distance
-  - /node/eval/view@frechet_table: table
-  - /node/eval/view@kernel_table: table
+  - /node/eval/metric@rfid: frechet_inception
+  - /node/eval/view@rfid_table: table
   - /node/eval/metric@diagnostics: gen_diagnostics
   - /node/eval/view@recon_diagnostics_view: multi_curve_bundle
   - /node/eval/view@kld_diagnostics_view: multi_curve_bundle
   - _self_
 
-frechet:
-  out: eval.gen.frechet
+rfid:
+  out: eval.gen.rfid
   in:
     pred_paths: capture.gen.image
     real_paths: batch.image
-kernel:
-  out: eval.gen.kernel
+rfid_table:
+  title: Reconstruction FID
+  filename: rfid.csv
   in:
-    pred_paths: capture.gen.image
-    real_paths: batch.image
-frechet_table:
-  title: Frechet Distance
-  filename: frechet_distance.csv
-  in:
-    rows: eval.gen.frechet:rows
-kernel_table:
-  title: Kernel (MMD) Distance
-  filename: kernel_distance.csv
-  in:
-    rows: eval.gen.kernel:rows
+    rows: eval.gen.rfid:rows
 diagnostics:
   out: eval.gen.diagnostics
 recon_diagnostics_view:
@@ -47,4 +35,5 @@ kld_diagnostics_view:
     curves: eval.gen.diagnostics:kld_curves
 summary:
   _target_: teia.node.eval.view.summary.Summary
-  in: [eval.gen.frechet, eval.gen.kernel]
+  namespace: true
+  in: [eval.gen.rfid]

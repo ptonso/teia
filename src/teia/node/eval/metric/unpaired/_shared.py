@@ -19,7 +19,8 @@ Description:
   Pure math shared by the unpaired metrics. ``frechet_distance`` is the FID closed form, whose
   Gaussian-to-Gaussian expression is due to Dowson & Landau and whose use as a generative-model
   score is due to Heusel et al. ``rbf_mmd_squared`` is Gretton et al.'s unbiased two-sample MMD
-  estimator; ``ks_statistic`` is the Smirnov two-sample statistic.
+  estimator, and ``poly3_mmd_squared`` the same estimator under the cubic
+  polynomial kernel of Binkowski et al.'s KID; ``ks_statistic`` is the Smirnov two-sample statistic.
 
 Adaptations:
   - Not a component itself (no ``_target_``, no ``in``/``out``); imported by the metric modules
@@ -32,7 +33,7 @@ from __future__ import annotations
 
 import numpy as np
 
-__all__ = ["frechet_distance", "rbf_mmd_squared", "ks_statistic"]
+__all__ = ["frechet_distance", "rbf_mmd_squared", "poly3_mmd_squared", "ks_statistic"]
 
 
 def _matrix_sqrt_psd(matrix: np.ndarray) -> np.ndarray:
@@ -111,3 +112,17 @@ def ks_statistic(sample_a: np.ndarray, sample_b: np.ndarray) -> float:
     cdf_a = np.searchsorted(np.sort(sample_a), combined, side="right") / max(len(sample_a), 1)
     cdf_b = np.searchsorted(np.sort(sample_b), combined, side="right") / max(len(sample_b), 1)
     return float(np.max(np.abs(cdf_a - cdf_b))) if combined.size else 0.0
+
+
+def poly3_mmd_squared(features_a: np.ndarray, features_b: np.ndarray) -> float:
+    """Unbiased squared MMD under ``k(x, y) = (x.y / d + 1)^3`` (the KID kernel of Binkowski et al.).
+
+    Unclipped: the unbiased estimate can be slightly negative when the two sets match.
+    """
+    features_a, features_b = features_a.astype(np.float64), features_b.astype(np.float64)
+    dim = features_a.shape[1]
+    k_aa = (features_a @ features_a.T / dim + 1.0) ** 3
+    k_bb = (features_b @ features_b.T / dim + 1.0) ** 3
+    k_ab = (features_a @ features_b.T / dim + 1.0) ** 3
+    m, n = len(features_a), len(features_b)
+    return float((k_aa.sum() - np.trace(k_aa)) / (m * (m - 1)) + (k_bb.sum() - np.trace(k_bb)) / (n * (n - 1)) - 2.0 * k_ab.mean())

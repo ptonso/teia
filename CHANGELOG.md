@@ -10,11 +10,18 @@ Versioning rules: [specs/stability](specs/stability.md).
 - `evalmodule.eval_episodes` is removed and raises as an unknown setting. The eval episode count is `datamodule.env.eval_episodes`.
 - `TeiaDataModule.evaluate` and `InteractiveRegime.evaluate` are removed. Eval episodes run through the capture-only test dataloader.
 - The capture encoder raises on a float image blob outside `[0, 1]` instead of guessing a signed range. Kernels and transforms that emit blobs convert to unit range; a `pixel_norm: signed` generation run now fails at capture on its `batch.image` target.
+- `summary` raises when two inputs publish one scalar key with different values; `namespace: true` writes `<input atom>.<field>`.
+- `evalmodule/vision-gen/default` scores `rfid` (Inception pool3, reconstructions vs test images) and writes `rfid.*` summary keys; `frechet_distance`/`kernel_distance` keys of the old profile are gone.
+- `FrechetDistance` and `KernelDistance` raise on an empty side instead of returning counts only. `KernelDistance` averages a subset MMD^2 with `kernel: poly3` (KID) by default; `rbf` is the previous kernel.
+- `EmbeddingAccumulator.update_paths` takes its batch size from the constructor.
 
 ### Added
 
 - `EpisodeAggregate` metric (`node/eval/metric/episode_aggregate`): per-episode `episode_return`, `episode_length` and `terminated_rate` from captured per-step rows.
 - `test.weights` (`best` or `last`): which checkpoint test and export load when none is given.
+- `InceptionPool3` FID feature extractor (`node/eval/metric/unpaired/inception`, extra `fid`): pytorch-fid pool3 with sha256-pinned weights.
+- `FrechetDistance(reference=...)` with `reference_statistics`/`save_reference`: precomputed real-set statistics.
+- `evalmodule/vision-gen/gfid`: generation FID against `${data_root}/fid/inception_pool3_train.npz`.
 - `evalmodule.media` caps now apply, to gif and mp4 blobs only.
 
 ### Results may change

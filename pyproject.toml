@@ -42,7 +42,8 @@ dependencies = [
 vision = ["torchvision"]
 audio = ["torchaudio", "soundfile"]
 tabular = ["sqlalchemy", "pyarrow"]
-all = ["pyteia[vision,audio,tabular]"]
+fid = ["pytorch-fid==0.3.0"]
+all = ["pyteia[vision,audio,tabular,fid]"]
 
 [project.urls]
 Homepage = "https://github.com/ptonso/teia"
