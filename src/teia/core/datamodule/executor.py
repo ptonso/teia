@@ -268,9 +268,6 @@ class TeiaDataModule(LightningDataModule):
     def eval_episodes(self) -> int:
         return int(self._stream_reader_node().eval_episodes)
 
-    def evaluate(self, module: Any, *, episodes: int = 10, deterministic: bool = True, seed: int | None = None) -> dict[str, list[float]]:
-        return self._regime.evaluate(module, episodes=episodes, deterministic=deterministic, seed=seed)
-
     # -- plan stage ---------------------------------------------------------------
     def _build_streams(self, split: str) -> dict[str, dict[Any, Any]]:
         """Each reader's indexed stream ``{key → raw}`` for ``split``, keyed by the reader's out_key."""

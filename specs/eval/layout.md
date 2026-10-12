@@ -32,7 +32,7 @@ Terms owned by [base/eval/nodes](../base/eval/nodes.md): eval node, eval workspa
 teia/node/eval/
   metric/
     aligned/<component>.py     # confusion, ranked_ap, calibration, instance_match,
-                               #   residuals, horizon_error, concordance, km_estimate,
+                               #   residuals, horizon_error, concordance, km_estimate, episode_aggregate,
                                #   semantic_confusion, threshold_optimization (per-class thresholds for multi-hot targets, per-class score weights for class-index targets)
     unpaired/<component>.py    # frechet_distance, kernel_distance, distribution_test
     run/<component>.py         # training_curves, gen_diagnostics, target_summary (read no predictions)

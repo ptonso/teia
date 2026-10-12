@@ -31,7 +31,6 @@ class EvalSettings:
     max_rows: int | None = None
     ctx: dict[str, Any] = field(default_factory=dict)
     media: dict[str, Any] = field(default_factory=dict)
-    eval_episodes: int | None = None
 
 
 def split_evalmodule(evalmodule: Mapping[str, Any] | None) -> tuple[EvalSettings, dict[str, Any]]:

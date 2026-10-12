@@ -9,7 +9,7 @@ instead of a bespoke ``io``/``transform``/``buffer``/``collater`` tuple:
 * ``train_iterable(module)`` — bind a ``RunnerContext`` (graph reader/reshape/ctx) and return the
   configured ``Runner``'s iterable (num_workers=0, live weights — one env step = one policy
   forward inside the item subgraph's ``PolicyAction`` node).
-* ``eval_iterable(...)`` / ``evaluate(...)`` — deterministic capture-only eval episodes, driven
+* ``eval_iterable(...)`` — deterministic capture-only eval episodes, driven
   the same way (item subgraph + collate_fn), reading the env directly off the stream reader's
   ``io`` backend for the one-off eval env (never the training ``train_env``).
 
@@ -53,23 +53,14 @@ class InteractiveRegime:
         record = next(iter(self.eval_steps(module, episodes=1, deterministic=True, seed=0)))
         return dm._collate_fn([_eval_seed_item(record)])
 
-    def evaluate(
-        self, module: Any, *, episodes: int = 10, deterministic: bool = True, seed: int | None = None
-    ) -> dict[str, list[float]]:
-        returns: list[float] = []
-        lengths: list[float] = []
-        terminated_flags: list[float] = []
-        for record in self.eval_steps(module, episodes=episodes, deterministic=deterministic, seed=seed):
-            if record["episode_done"]:
-                returns.append(record["episode_return"])
-                lengths.append(record["episode_length"])
-                terminated_flags.append(record["episode_terminated"])
-        return {"return": returns, "length": lengths, "terminated": terminated_flags}
-
     def eval_steps(
         self, module: Any, *, episodes: int, deterministic: bool, seed: int | None
     ) -> Iterator[dict[str, Any]]:
-        """Per-step eval generator shared by ``evaluate`` and the eval dataloader (capture-only)."""
+        """Per-step eval records for the capture-only dataloader.
+
+        Episode ids are unique across envs. The next-step autoreset step after an episode ends
+        is not a transition and is not yielded. Item nodes run with ``training = not deterministic``
+        (``PolicyAction`` acts greedily, online-fit transforms freeze) and get their flags back after."""
         dm = self._dm
         dm.bind_context(policy=module)
         reader = dm._stream_reader_node()
@@ -78,14 +69,14 @@ class InteractiveRegime:
         eval_seed = int(reader.seed if seed is None else seed)
         env = io.build_eval_env(eval_seed, reader.num_envs)
         ctx_values = dm._bind_stream_context()
-        gen = torch.Generator()
-        gen.manual_seed(eval_seed + 11)
+        nodes = [dm._nodes[rec.name] for rec in dm._item_records if hasattr(dm._nodes[rec.name], "training")]
+        prev_training = [node.training for node in nodes]
+        for node in nodes:
+            node.training = not deterministic
 
         raw_obs = to_device(io.reset(env, seed=eval_seed), device)
         prev_done = torch.zeros(reader.num_envs, dtype=torch.bool)
-        episode_id = torch.zeros(reader.num_envs, dtype=torch.long)
-        ep_return = torch.zeros(reader.num_envs)
-        ep_length = torch.zeros(reader.num_envs)
+        episode_id = torch.arange(reader.num_envs, dtype=torch.long)
         completed = 0
         try:
             while completed < int(episodes):
@@ -94,14 +85,11 @@ class InteractiveRegime:
                 norm_obs = {k: v for k, v in workspace.items() if k.startswith("item.obs_")}
                 env_action = detach_cpu(workspace["item.env_action"])
                 step = io.step(env, env_action)
-
-                mask = (~prev_done).to(torch.float32)
-                ep_return += step.reward.detach().to(ep_return.dtype).reshape(-1) * mask
-                ep_length += mask
                 done = (step.terminated | step.truncated).to(torch.bool)
 
                 for env_i in range(reader.num_envs):
-                    finished = bool(done[env_i]) and bool(mask[env_i] > 0)
+                    if prev_done[env_i]:
+                        continue
                     yield {
                         "obs": {k[len("item.obs_") :]: v[env_i] for k, v in norm_obs.items()},
                         "action": detach_cpu(workspace["item.action"])[env_i],
@@ -109,21 +97,16 @@ class InteractiveRegime:
                         "terminated": step.terminated[env_i],
                         "truncated": step.truncated[env_i],
                         "episode_id": int(episode_id[env_i]),
-                        "mask": float(mask[env_i]),
-                        "episode_done": finished,
-                        "episode_return": float(ep_return[env_i]),
-                        "episode_length": int(ep_length[env_i]),
-                        "episode_terminated": float(bool(step.terminated[env_i])),
                     }
-                    if finished:
+                    if done[env_i]:
                         completed += 1
-                        episode_id[env_i] += 1
-                        ep_return[env_i] = 0.0
-                        ep_length[env_i] = 0.0
+                        episode_id[env_i] += reader.num_envs
 
                 raw_obs = to_device(step.next_obs, device)
                 prev_done = done
         finally:
+            for node, prev in zip(nodes, prev_training):
+                node.training = prev
             close = getattr(env, "close", None)
             if callable(close):
                 close()
@@ -196,7 +179,7 @@ def _eval_seed_item(record: dict[str, Any]) -> dict[str, Any]:
     seed_item["item.reward"] = _as_tensor(record["reward"])
     seed_item["item.terminated"] = _as_tensor(record["terminated"])
     seed_item["item.truncated"] = _as_tensor(record["truncated"])
-    seed_item["item.mask"] = torch.tensor(record["mask"], dtype=torch.float32)
+    seed_item["item.mask"] = torch.tensor(1.0)
     seed_item["item.episode_id"] = torch.tensor(record["episode_id"], dtype=torch.long)
     return seed_item
 

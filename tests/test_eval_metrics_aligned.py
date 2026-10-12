@@ -18,6 +18,7 @@ from sklearn import metrics as sklearn_metrics
 from teia.node.eval.metric.aligned.calibration import Calibration
 from teia.node.eval.metric.aligned.concordance import Concordance
 from teia.node.eval.metric.aligned.confusion import Confusion
+from teia.node.eval.metric.aligned.episode_aggregate import EpisodeAggregate
 from teia.node.eval.metric.aligned.horizon_error import HorizonError
 from teia.node.eval.metric.aligned.km_estimate import KmEstimate
 from teia.node.eval.metric.aligned.ranked_average_precision import RankedAveragePrecision
@@ -338,6 +339,27 @@ class TestRankedAveragePrecisionMatchedPath:
     def test_rows_without_ground_truth_are_rejected(self) -> None:
         with pytest.raises(ValueError, match="ground_truth"):
             RankedAveragePrecision().from_source(None, matched=_rows(0.5, (0.9, "x", True)))
+
+
+class TestEpisodeAggregate:
+    def test_groups_rows_by_episode_and_drops_unfinished(self) -> None:
+        # Two envs interleaved: episode 0 terminates after 2 steps, 1 truncates after 3, 2 is cut off.
+        result = EpisodeAggregate().from_source(
+            None,
+            reward=[1.0, 2.0, 3.0, 1.0, 1.0, 5.0],
+            terminated=[0, 0, 1, 0, 0, 0],
+            truncated=[0, 0, 0, 0, 1, 0],
+            episode_id=[0, 1, 0, 1, 1, 2],
+        )
+        assert result["episodes"] == 2
+        assert result["episode_return"] == pytest.approx((4.0 + 4.0) / 2)
+        assert result["episode_length"] == pytest.approx(2.5)
+        assert result["terminated_rate"] == pytest.approx(0.5)
+        assert [row["episode_id"] for row in result["rows"]] == [0, 1]
+
+    def test_no_ended_episode_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match="ended"):
+            EpisodeAggregate().from_source(None, reward=[1.0], terminated=[0], truncated=[0], episode_id=[0])
 
 
 if __name__ == "__main__":

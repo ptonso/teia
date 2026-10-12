@@ -3,7 +3,7 @@
 Source: common knowledge
 
 Description:
-  Input sets several task contracts share: an RGB image batch, the tabular type slots, and the interactive-regime transition fields. See teia:base/task.md.
+  Input sets several task contracts share: an RGB image batch, the tabular type slots, and the interactive-regime transition fields, whose per-step episode fields are eval targets. See teia:base/task.md.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ DET_CAPTURE = {
     "det.sample_idx": Ragged("N", index="det.sample_idx"),
 }
 TRANSITION = {
-    name: Tensor("B *")
+    name: Tensor("B *", target=name in ("reward", "terminated", "truncated", "episode_id"))
     for name in ("obs_state", "action", "reward", "terminated", "truncated", "mask", "episode_start", "episode_id")
 }
 ON_POLICY = {name: Tensor("B *") for name in ("log_prob", "value", "advantage", "return_")}

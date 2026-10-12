@@ -39,7 +39,7 @@ Versions follow `MAJOR.MINOR.PATCH`.
 | A change in results with no error: a new task preset or default evalmodule, a changed component default, a changed metric formula | minor |
 | A fix that changes no interface | patch |
 
-Before `1.0.0`, the minor digit plays the role of major and the patch digit covers everything else.
+Before `1.0.0`, the minor digit plays the role of major and the patch digit covers everything else. The project is in beta until then, so a minor release may also change a released task contract in place, listed under **Breaking** in `CHANGELOG.md`.
 
 ### Task contracts
 
@@ -51,11 +51,12 @@ A task that needs different fields, types or routes is a new contract with its o
 
 ## Extending
 
-To add a component or task, add it in the zoo or in `teia.task` and release it as a minor version. To change a default, change the preset and list it under "Results may change". To change a released task contract, add a new contract instead.
+To add a component or task, add it in the zoo or in `teia.task` and release it as a minor version. To change a default, change the preset and list it under "Results may change". To change a released task contract, add a new contract instead, except before `1.0.0` ([version numbers](#version-numbers)).
 
 ## Constraints
 
 - A change that makes a previously working config, project or run snapshot raise an error MUST be released as a major version.
-- A released task contract MUST NOT change its fields, types or route.
+- From `1.0.0` on, a released task contract MUST NOT change its fields, types or route.
+- A release that breaks a config, project, run snapshot or task contract MUST list each break under "Breaking" in `CHANGELOG.md`.
 - A release that can change results MUST list each such change under "Results may change" in `CHANGELOG.md`.
 - The language MUST NOT import the zoo statically ([architecture](architecture.md)).

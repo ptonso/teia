@@ -32,7 +32,7 @@ Any datamodule emitting those fields, any netmodule mapping an activation onto `
 - **boundary A**: `batch.*` plus `meta.*`, the data→net seam.
 - **boundary B**: `capture.*` plus target `batch.*`, `meta.*` and `log.*`, the net→eval seam.
 - **spec**: the type of one boundary key (`Tensor`, `Ragged`, `Blob`, `Dim`, `Names`).
-- **target field**: a `batch.*` field declared `target=True`. It is consumed by losses and captured as eval ground truth.
+- **target field**: a `batch.*` field declared `target=True`. It is captured as eval ground truth, and losses may consume it.
 - **shape string**: space-separated dims. It starts with `B` (a `Tensor`'s batch dim) or `N` (a `Ragged` row dim). An integer is literal. A `meta` name expands to its value, and a tuple value such as `kpt_shape` fills several dims. `*` matches one dim of any extent, or any number of dims when it is last. Any other name is free but must agree wherever it repeats, across all fields.
 - **meta**: dataset-level facts resolved at the data graph's plan stage (`num_classes`, `class_names`, `kpt_shape`), exposed by `TeiaDataModule.meta()` ([core/datamodule](../core/datamodule.md)).
 - **log key**: `log.<column>`, a per-epoch logger series read by the eval graph ([core/eval](../core/eval.md)).
