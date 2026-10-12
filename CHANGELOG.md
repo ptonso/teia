@@ -13,6 +13,7 @@ Versioning rules: [specs/stability](specs/stability.md).
 ### Added
 
 - `EpisodeAggregate` metric (`node/eval/metric/episode_aggregate`): per-episode `episode_return`, `episode_length` and `terminated_rate` from captured per-step rows.
+- `test.weights` (`best` or `last`): which checkpoint test and export load when none is given.
 
 ### Results may change
 

@@ -464,7 +464,7 @@ def _run_lightning_stage(
     if stage in {"train", "test"} and eval_graph:
         callbacks = [
             *callbacks,
-            CaptureCallback(graph=eval_graph, ctx=eval_settings.ctx, max_rows=eval_settings.max_rows, run_dir=run_dir),
+            CaptureCallback(graph=eval_graph, ctx=eval_settings.ctx, max_rows=eval_settings.max_rows, media=eval_settings.media_caps(), run_dir=run_dir),
         ]
     if isinstance(module_obj, TeiaStageModule) and isinstance(datamodule_obj, BatchMetaSource):
         module_obj.dry_run(datamodule_obj)
@@ -1001,6 +1001,11 @@ def _callable_accepts_kwarg(target: str, kwarg: str) -> bool:
 
 
 def _resolve_checkpoint(stage: str, checkpoint: str | None, config: dict[str, Any], context: dict[str, Any]) -> str | None:
+    """An explicit checkpoint, else ``<stage>.checkpoint``, else the run's ``test.weights`` checkpoint.
+
+    ``test.weights: last`` (the final weights) is for runs whose ``best`` is chosen by a biased
+    monitor, such as an online training return; it does not fall back to ``best``.
+    """
     if checkpoint:
         return str(Path(checkpoint))
 
@@ -1011,6 +1016,14 @@ def _resolve_checkpoint(stage: str, checkpoint: str | None, config: dict[str, An
 
     callbacks = context.get("callbacks") or []
     run_dir = Path(context["run_dir"])
+    weights = (config.get("test") or {}).get("weights", "best")
+    if weights not in ("best", "last"):
+        raise ValueError(f"test.weights must be 'best' or 'last', got {weights!r}.")
+    if weights == "last":
+        found = _find_checkpoint_path(callbacks=callbacks, run_dir=run_dir, kind="last")
+        if found is not None and "last" not in Path(found).name:
+            raise FileNotFoundError(f"test.weights=last, but {run_dir} has no last checkpoint (found {found}); set save_last on ModelCheckpoint.")
+        return found
     return _find_checkpoint_path(callbacks=callbacks, run_dir=run_dir, kind="best") or _find_checkpoint_path(
         callbacks=callbacks,
         run_dir=run_dir,

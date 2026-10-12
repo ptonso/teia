@@ -23,6 +23,7 @@ from teia.base.net import TeiaNode
 from teia.core.runtime.composer import compose_project_config
 from teia.core.runtime.engine import (
     _prepare_datamodule_config,
+    _resolve_checkpoint,
     _run_lightning_stage,
     export_project,
     infer_project,
@@ -1375,6 +1376,24 @@ class RuntimeValidationTests(unittest.TestCase):
                 run_test_project(run_dir=run_dir, skip_report=False)
 
             self.assertEqual(calls, ["report"])
+
+
+class CheckpointSelectionTests(unittest.TestCase):
+    def test_test_weights_selects_best_or_last(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            (run_dir / "weights").mkdir()
+            for name in ("best.ckpt", "last.ckpt"):
+                (run_dir / "weights" / name).touch()
+            context = {"run_dir": str(run_dir)}
+            pick = lambda test: Path(_resolve_checkpoint(stage="test", checkpoint=None, config={"test": test}, context=context)).name
+            self.assertEqual(pick({}), "best.ckpt")
+            self.assertEqual(pick({"weights": "last"}), "last.ckpt")
+            with self.assertRaises(ValueError):
+                pick({"weights": "final"})
+            (run_dir / "weights" / "last.ckpt").unlink()
+            with self.assertRaises(FileNotFoundError):
+                pick({"weights": "last"})
 
 
 if __name__ == "__main__":

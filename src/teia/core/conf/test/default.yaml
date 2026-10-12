@@ -1,2 +1,3 @@
 checkpoint: null
+weights: best  # best | last: which ModelCheckpoint file test and export load when no checkpoint is given
 run_report: true

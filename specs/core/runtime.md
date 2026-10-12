@@ -36,6 +36,10 @@ Walk-through: every stage composes or rehydrates a config, validates it, applies
 - **infer**: rehydrate, rebuild the datamodule for the new input source, predict, and write `infer/predictions.jsonl` (or `<output-dir>/predictions.jsonl`) plus additive `infer/io/<io_name>/`.
 - **export**: rehydrate, rebuild the module, load the checkpoint, extract the inference graph and runtime metadata, and write an ONNX-first bundle.
 
+### Checkpoint selection
+
+A stage loads an explicit `--checkpoint`, else `<stage>.checkpoint`, else the `ModelCheckpoint` file named by `test.weights` (`core/conf/test/default.yaml`). The post-train test and export use the same resolution after fit. `test.weights: best` (default) takes `best`, then `last`. `test.weights: last` takes the final weights, and a run with checkpoints but no `last` one raises `FileNotFoundError` instead of falling back to `best`. It is for runs whose `best` is picked by a biased monitor, such as an online training return. Any other value raises `ValueError`.
+
 ### Pre-flight validation
 
 `validate_composed_config` runs before any instantiation and also gates the eval plane. Every eval node's dependencies must be importable and its `in` keys must have a producer. Both checks run before `trainer.fit`, so a mis-wired or un-installable plot fails in seconds (see [eval](eval.md), [deps](deps.md)).
