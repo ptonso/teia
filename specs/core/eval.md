@@ -42,8 +42,10 @@ enabled: true           # run offline eval after test
 split: test             # the split captured and evaluated
 max_rows: null          # null = whole split; an int caps captured rows uniformly across routes
 ctx: {}                 # postprocess ctx during capture (e.g. conf: 0.001, iou: 0.7, max_det: 300)
-media: {max_items: 16, max_seconds: 10, max_resolution: 256}   # caps for Blob atoms of media formats
+media: {max_items: 16, max_seconds: 10, max_resolution: 256}   # caps for frame-stack Blob atoms (gif, mp4)
 ```
+
+`media` caps only frame-stack blobs, which views display and no metric reads: at most `max_items` rows of such a column are written, a clip keeps `max_seconds` of frames at the encoder's 10 frames per second, and frames are downscaled so the long side is at most `max_resolution`. PNG blobs (images, masks) are metric inputs and are never capped, since a segmentation confusion needs every mask and a FID needs every sample. `max_rows` is the one knob that caps every lane.
 
 There is no universal graph selected by core. Each evalmodule mounts the shared run fragment (`/evalmodule/_shared/run@_here_`: training curves, LR curves, target summary) when it wants it.
 
@@ -57,7 +59,7 @@ One directory per split, `artifacts/capture/<split>/`, with three lanes and a co
 
 - **numeric**: `Tensor` and `Ragged` atoms, as raw bytes appended per batch and read back as `np.memmap`, shape `(rows, *row_shape)`. A `Ragged` atom's `index` column is offset to be global across the split.
 - **rows**: JSONL plus an offset index, for `Names` meta and non-numeric atoms (`sample_ids`, paths).
-- **blobs**: `Blob` atoms, one file per sample in the spec's `format`. The encoder is picked from the array's dtype: an integer mask becomes a palette PNG, a float image an RGB PNG, and a frame stack a GIF or MP4.
+- **blobs**: `Blob` atoms, one file per sample in the spec's `format`. The encoder is picked from the array's dtype: an integer mask becomes a palette PNG, a float image an RGB PNG, and a frame stack a GIF or MP4. A float image or frame MUST lie in `[0, 1]`, and the encoder raises naming the column and the observed range: the producer (an activation kernel, a data transform) owns the conversion to unit range, since core cannot know a tensor's value space.
 - `manifest.json`: the completion marker, the `{route: {atom: column}}` map, the contract `_target_`, and every contract `meta` value.
 
 ### Ground truth
@@ -177,6 +179,8 @@ A comparison needing task-specific metric names is a copied bundle passed via `-
 - A required capture split that is missing MUST fail fast and MUST NOT fall back to another split.
 - An eval node MUST NOT receive a live `LightningModule`, datamodule, trainer or dataloader, and the engine MUST NOT hold them alive for the eval pass.
 - Monitor names MUST be unique per split, and duplicates are rejected at pre-flight.
+- Media caps MUST apply only to frame-stack blob formats, never to PNG blobs.
+- The blob encoder MUST NOT guess a float array's value range; values outside `[0, 1]` MUST raise.
 - The contract, dependency, wiring and callback gates MUST run before `trainer.fit`.
 - Run artifacts MUST NOT contain absolute paths.
 - The walltime report MUST be emitted by every run.

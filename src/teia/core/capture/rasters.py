@@ -1,8 +1,9 @@
 """Blob encoding for ``Blob`` capture atoms, chosen by array dtype and the spec's ``format`` only.
 
-Integer ``[H, W]`` → palette-free mask PNG (uint8/uint16). Float ``[C, H, W]``/``[H, W]`` → RGB PNG,
-with a signed ``[-1, 1]`` range mapped to ``[0, 1]``. Float ``[T, C, H, W]`` with ``format: gif`` →
-an animated GIF. Ground truth and predictions go through the same encoder, so paired metrics
+Integer ``[H, W]`` → palette-free mask PNG (uint8/uint16). Float ``[C, H, W]``/``[H, W]`` → RGB PNG.
+Float ``[T, C, H, W]`` with ``format: gif`` → an animated GIF. A float image MUST lie in ``[0, 1]``:
+core cannot know a tensor's value space, so the producer (an activation kernel, a data transform)
+converts to unit range and the encoder raises otherwise. Ground truth and predictions go through the same encoder, so paired metrics
 compare like with like.
 """
 
@@ -15,12 +16,16 @@ import numpy as np
 
 __all__ = ["encode_blob"]
 
+_TOL = 1e-3
+
 
 def encode_blob(value: Any, path: Path, fmt: str) -> Path:
     from PIL import Image
 
     array = np.asarray(value.detach().cpu() if hasattr(value, "detach") else value)
     path.parent.mkdir(parents=True, exist_ok=True)
+    if np.issubdtype(array.dtype, np.floating) and array.size and (array.min() < -_TOL or array.max() > 1.0 + _TOL):
+        raise ValueError(f"Blob {path}: float image values span [{array.min():.4g}, {array.max():.4g}], expected [0, 1].")
     if fmt == "gif":
         frames = [Image.fromarray(_rgb(frame)) for frame in array]
         frames[0].save(path, save_all=True, append_images=frames[1:], duration=100, loop=0)
@@ -47,6 +52,4 @@ def _rgb(array: np.ndarray) -> np.ndarray:
         image = image[..., None]
     if image.shape[-1] == 1:
         image = np.repeat(image, 3, axis=-1)
-    if image.size and image.min() < 0:
-        image = (image + 1.0) / 2.0
     return (np.clip(image, 0.0, 1.0) * 255.0).round().astype(np.uint8)

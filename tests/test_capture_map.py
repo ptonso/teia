@@ -13,6 +13,7 @@ import numpy as np
 import torch
 
 from teia.base.task import Blob, Dim, Names, Ragged, TaskContract, Tensor
+from teia.core.eval.runner import MEDIA_DEFAULTS
 from teia.core.capture.callback import _AtomWriter
 from teia.core.capture.extract import CaptureMap
 from teia.core.capture.store import CaptureStore, store_dir
@@ -85,7 +86,7 @@ class AtomWriterTests(unittest.TestCase):
         capture = CaptureMap(SOURCES, OUTPUTS, Det())
         module = SimpleNamespace(capture_map=capture, contract=Det())
         with tempfile.TemporaryDirectory() as tmp:
-            writer = _AtomWriter(Path(tmp), "test", module, {"num_classes": 3, "class_names": ["a", "b", "c"]}, None)
+            writer = _AtomWriter(Path(tmp), "test", module, {"num_classes": 3, "class_names": ["a", "b", "c"]}, None, MEDIA_DEFAULTS)
             for sizes in ([2, 1], [1]):
                 batch, activated, post = _step(sizes)
                 writer.write(capture.atoms(batch, activated, post), len(sizes))
@@ -104,7 +105,7 @@ class AtomWriterTests(unittest.TestCase):
         capture = CaptureMap(SOURCES, OUTPUTS, Det())
         module = SimpleNamespace(capture_map=capture, contract=Det())
         with tempfile.TemporaryDirectory() as tmp:
-            writer = _AtomWriter(Path(tmp), "test", module, {}, max_rows=2)
+            writer = _AtomWriter(Path(tmp), "test", module, {}, max_rows=2, media=MEDIA_DEFAULTS)
             for sizes in ([1, 1], [1, 1]):
                 batch, activated, post = _step(sizes)
                 writer.write(capture.atoms(batch, activated, post), len(sizes))

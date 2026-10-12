@@ -21,12 +21,17 @@ from teia.core.eval.streaming import LiveFrameSource, build_streaming_runner
 
 __all__ = ["CaptureCallback"]
 
+#: Blob formats ``evalmodule.media`` caps (teia:core/eval.md#evalmodule-settings); PNG blobs are never capped.
+FRAME_FORMATS = {"gif", "mp4"}
+FRAMES_PER_SECOND = 10
+
 
 class CaptureCallback(Callback):
-    def __init__(self, *, graph: Mapping[str, Any], ctx: Mapping[str, Any], max_rows: int | None, run_dir: Path) -> None:
+    def __init__(self, *, graph: Mapping[str, Any], ctx: Mapping[str, Any], max_rows: int | None, media: Mapping[str, Any], run_dir: Path) -> None:
         self.graph = dict(graph)
         self.ctx = dict(ctx)
         self.max_rows = max_rows
+        self.media = dict(media)
         self.run_dir = Path(run_dir)
         self._runner: Any = None
         self._writer: _AtomWriter | None = None
@@ -41,7 +46,7 @@ class CaptureCallback(Callback):
         if _in_fit(trainer):
             self._runner = build_streaming_runner(self.graph, meta=trainer.datamodule.meta())
         else:
-            self._writer = _AtomWriter(self.run_dir, "val", pl_module, trainer.datamodule.meta(), self.max_rows)
+            self._writer = _AtomWriter(self.run_dir, "val", pl_module, trainer.datamodule.meta(), self.max_rows, self.media)
 
     def on_validation_batch_end(self, trainer: Any, pl_module: Any, outputs: Any, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> None:
         atoms = outputs.get("atoms") if isinstance(outputs, Mapping) else None
@@ -63,7 +68,7 @@ class CaptureCallback(Callback):
 
     # -- test: capture ---------------------------------------------------------------------------
     def on_test_epoch_start(self, trainer: Any, pl_module: Any) -> None:
-        self._writer = _AtomWriter(self.run_dir, "test", pl_module, trainer.datamodule.meta(), self.max_rows)
+        self._writer = _AtomWriter(self.run_dir, "test", pl_module, trainer.datamodule.meta(), self.max_rows, self.media)
 
     def on_test_batch_end(self, trainer: Any, pl_module: Any, outputs: Any, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> None:
         atoms = outputs.get("atoms") if isinstance(outputs, Mapping) else None
@@ -76,6 +81,16 @@ class CaptureCallback(Callback):
             self._writer = None
 
 
+def _cap_frames(frames: Any, media: Mapping[str, Any]) -> Any:
+    """``[T, C, H, W]`` cut to ``max_seconds`` at the encoder's 10 frames per second, long side at most ``max_resolution``."""
+    import torch
+    import torch.nn.functional as F
+
+    frames = torch.as_tensor(frames)[: int(media["max_seconds"] * FRAMES_PER_SECOND)]
+    scale = media["max_resolution"] / max(frames.shape[-2:])
+    return F.interpolate(frames.float(), scale_factor=scale, mode="area") if scale < 1 else frames
+
+
 def _in_fit(trainer: Any) -> bool:
     fn = trainer.state.fn
     return str(getattr(fn, "value", fn)).lower() == "fit"
@@ -84,7 +99,7 @@ def _in_fit(trainer: Any) -> bool:
 class _AtomWriter:
     """Writes atom dicts to one split's store; declares each column from its first batch."""
 
-    def __init__(self, run_dir: Path, split: str, module: Any, meta: Mapping[str, Any], max_rows: int | None) -> None:
+    def __init__(self, run_dir: Path, split: str, module: Any, meta: Mapping[str, Any], max_rows: int | None, media: Mapping[str, Any]) -> None:
         capture = module.capture_map
         self.specs: dict[str, Any] = {f"capture.{atom}": spec for atom, spec in capture.specs.items()}
         self.specs.update({f"batch.{field}": spec for field, spec in capture.target_specs.items()})
@@ -97,6 +112,7 @@ class _AtomWriter:
             **{key: _jsonable(value) for key, value in meta.items()},
         )
         self.max_rows = max_rows
+        self.media = dict(media)
         self.samples = 0
         self.declared: set[str] = set()
         self.routes: dict[str, dict[str, str]] = {}
@@ -124,7 +140,12 @@ class _AtomWriter:
     def _write_blobs(self, column: str, values: list[Any], fmt: str) -> None:
         self._declare(column, "blob", ext=fmt)
         for i, value in enumerate(values):
-            encode_blob(value, self.writer.blob_path(column, self.samples + i), fmt)
+            row = self.samples + i
+            if fmt in FRAME_FORMATS:
+                if row >= self.media["max_items"]:
+                    return
+                value = _cap_frames(value, self.media)
+            encode_blob(value, self.writer.blob_path(column, row), fmt)
             self.writer.record_blob(column)
 
     def _declare(self, column: str, lane: str, **kwargs: Any) -> None:

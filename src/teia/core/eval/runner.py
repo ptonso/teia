@@ -22,6 +22,10 @@ from teia.core.capture.store import CaptureStore, store_dir
 from teia.core.utils import ensure_dir, teia_log, read_yaml
 
 
+#: Caps for frame-stack blobs (gif, mp4) only; PNG blobs are metric inputs and never capped (teia:core/eval.md).
+MEDIA_DEFAULTS: dict[str, Any] = {"max_items": 16, "max_seconds": 10, "max_resolution": 256}
+
+
 @dataclass(frozen=True)
 class EvalSettings:
     """The evalmodule's non-node keys (teia:core/eval.md#evalmodule-settings); unknown keys fail fast."""
@@ -31,6 +35,12 @@ class EvalSettings:
     max_rows: int | None = None
     ctx: dict[str, Any] = field(default_factory=dict)
     media: dict[str, Any] = field(default_factory=dict)
+
+    def media_caps(self) -> dict[str, Any]:
+        """``media`` over its defaults; unknown keys fail fast."""
+        if unknown := sorted(set(self.media) - set(MEDIA_DEFAULTS)):
+            raise ValueError(f"evalmodule.media has unknown keys {unknown}; expected {sorted(MEDIA_DEFAULTS)}.")
+        return {**MEDIA_DEFAULTS, **self.media}
 
 
 def split_evalmodule(evalmodule: Mapping[str, Any] | None) -> tuple[EvalSettings, dict[str, Any]]:
