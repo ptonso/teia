@@ -1,0 +1,9 @@
+# GraphSAGE-mean (arXiv:1706.02216): neighbour mean, concatenated with the node and projected.
+_target_: teia.node.net.many_to_one.graph.graph_encoder.GraphEncoder
+aggregate: mean
+combine: concat
+normalize: true
+scope: neighbors
+num_layers: 2
+spatial_hops: 0
+max_degree: 0

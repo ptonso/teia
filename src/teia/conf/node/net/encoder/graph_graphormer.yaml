@@ -1,0 +1,12 @@
+# Graphormer (arXiv:2106.05234): dense attention biased by shortest-path distance, with degree embeddings.
+_target_: teia.node.net.many_to_one.graph.graph_encoder.GraphEncoder
+aggregate: dot
+combine: residual
+norm_order: post
+scope: all
+heads: 4
+num_layers: 2
+ffn_ratio: 2
+dropout: 0.1
+spatial_hops: 8
+max_degree: 32

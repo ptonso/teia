@@ -1,0 +1,9 @@
+# GIN-ε (arXiv:1810.00826): neighbour sum plus (1 + ε) self, through an MLP.
+_target_: teia.node.net.many_to_one.graph.graph_encoder.GraphEncoder
+aggregate: sum
+combine: gin
+scope: neighbors
+num_layers: 2
+ffn_ratio: 2
+spatial_hops: 0
+max_degree: 0

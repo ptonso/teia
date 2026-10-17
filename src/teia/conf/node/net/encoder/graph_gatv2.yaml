@@ -1,0 +1,12 @@
+# GATv2 (arXiv:2105.14491): dynamic attention over each node's neighbours.
+_target_: teia.node.net.many_to_one.graph.graph_encoder.GraphEncoder
+aggregate: gatv2
+combine: residual
+norm_order: post
+scope: neighbors
+heads: 4
+num_layers: 2
+ffn_ratio: 2
+dropout: 0.1
+spatial_hops: 0
+max_degree: 0

@@ -1,0 +1,12 @@
+# Pre-LN transformer over each node's neighbours, with no degree or shortest-path encoding: the encoder of boards v5.
+_target_: teia.node.net.many_to_one.graph.graph_encoder.GraphEncoder
+aggregate: dot
+combine: residual
+norm_order: pre
+scope: neighbors
+heads: 4
+num_layers: 2
+ffn_ratio: 2
+dropout: 0.1
+spatial_hops: 0
+max_degree: 0
