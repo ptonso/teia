@@ -48,3 +48,4 @@ demo/.teia-cache/
 
 # Local virtual environments
 .venv*/
+tests/*-runs/dataset/
