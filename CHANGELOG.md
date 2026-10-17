@@ -17,6 +17,7 @@ Versioning rules: [specs/stability](specs/stability.md).
 
 ### Added
 
+- `adamw_warmup_decay` and `adamw_graph` optimizer leaves, the `vision_default` and `vision_fitness` callbacks and the `vision_default` trainer.
 - `BalancedCrossEntropyLoss` (`balanced_cross_entropy`).
 - `TimmEncoder` (`timm_resnet18`, `timm_siglip`; extra `vision`) with `chunk_size`: checkpointed chunks in training, plain chunks in eval and when frozen.
 - `EpisodeAggregate` metric (`node/eval/metric/episode_aggregate`): per-episode `episode_return`, `episode_length` and `terminated_rate` from captured per-step rows.

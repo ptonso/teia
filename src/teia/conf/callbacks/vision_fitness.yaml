@@ -1,0 +1,11 @@
+defaults:
+  - vision_default
+  - _self_
+
+early_stop:
+  monitor: val/fitness
+  mode: max
+
+checkpoint:
+  monitor: val/fitness
+  mode: max

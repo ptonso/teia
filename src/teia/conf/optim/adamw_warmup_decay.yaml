@@ -1,0 +1,18 @@
+optimizer_target: torch.optim.AdamW
+lr: 1.0e-5
+weight_decay: 0.05
+lr_scheduler:
+  scheduler:
+    _target_: torch.optim.lr_scheduler.SequentialLR
+    schedulers:
+      - _target_: torch.optim.lr_scheduler.LinearLR
+        start_factor: 0.01
+        end_factor: 1.0
+        total_iters: 100
+      - _target_: torch.optim.lr_scheduler.LinearLR
+        start_factor: 1.0
+        end_factor: 0.05
+        total_iters: 1000
+    milestones: [100]
+  interval: step
+  frequency: 1
