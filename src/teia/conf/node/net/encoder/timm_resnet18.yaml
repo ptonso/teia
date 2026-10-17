@@ -1,0 +1,7 @@
+_target_: teia.node.net.one_to_one.grid.timm.TimmEncoder
+model_name: resnet18
+pretrained: true
+freeze: true
+global_pool: avg
+grad_checkpointing: false
+chunk_size: null

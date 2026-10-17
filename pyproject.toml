@@ -39,7 +39,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-vision = ["torchvision"]
+vision = ["torchvision", "timm"]
 audio = ["torchaudio", "soundfile"]
 tabular = ["sqlalchemy", "pyarrow"]
 fid = ["pytorch-fid==0.3.0"]
