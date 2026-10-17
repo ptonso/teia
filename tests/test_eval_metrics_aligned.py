@@ -68,6 +68,14 @@ class TestClsMetrics:
             assert row["recall"] == pytest.approx(recall[index])
             assert row["f1"] == pytest.approx(f1[index])
 
+    def test_confusion_sample_rows_carry_the_full_score_vector(self) -> None:
+        y_true, score_vectors, sample_ids, class_names = _cls_fixture()
+
+        rows = Confusion(multi_label=False).from_source(None, scores=score_vectors, cls=y_true, class_names=class_names, sample_ids=sample_ids)["sample_rows"]
+
+        assert [row["score_a"] for row in rows] == pytest.approx([vector[0] for vector in score_vectors])
+        assert [row["score_b"] for row in rows] == pytest.approx([vector[1] for vector in score_vectors])
+
     def test_ranked_average_precision_matches_sklearn(self) -> None:
         y_true, score_vectors, sample_ids, class_names = _cls_fixture()
         score_array = np.asarray(score_vectors)

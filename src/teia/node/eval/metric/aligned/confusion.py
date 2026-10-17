@@ -170,6 +170,7 @@ class Confusion(Metric):
             truth_label = resolved_classes[truth_index] if 0 <= truth_index < len(resolved_classes) else str(truth_index)
             sample_rows.append(
                 {"sample_id": sample_id, "truth": truth_label, "pred": pred_label, "confidence": confidence, "correct": int(truth_index == pred_index)}
+                | {f"score_{label}": score for label, score in zip(resolved_classes, score_vector, strict=False)}
             )
 
         metrics: dict[str, Any] = {
