@@ -35,6 +35,7 @@ from teia.core.runtime.determinism import (
     configure_torch_determinism,
     raise_enriched_determinism_error,
 )
+from teia.core.runtime.group import train_group
 from teia.core.runtime.layout import RuntimeLayout, resolve_runtime_layout
 from teia.core.runtime.memory import (
     BYTES_PER_GB,
@@ -1086,6 +1087,29 @@ class RuntimeValidationTests(unittest.TestCase):
             stage_payload = json.loads((run_dir / "artifacts" / "stages" / "test.json").read_text(encoding="utf-8"))
             self.assertEqual(stage_payload["stage"], "test")
             self.assertEqual(stage_payload["run_dir"], str(run_dir))
+
+    def test_train_group_trains_one_replica_per_n_runs_with_consecutive_seeds(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_snapshot_test_project(root, token="x")
+
+            group_dir = train_group(
+                project_dir=root,
+                config_dir=None,
+                overrides=["datamodule=custom", "netmodule=custom", "evalmodule=custom", "data_root=data", "runtime.n_runs=3", "runtime.seed=7"],
+                run_name="grp",
+                checkpoint=None,
+                skip_post_test=True,
+                skip_report=True,
+                skip_export=True,
+            )
+
+            self.assertEqual(sorted(path.name for path in group_dir.iterdir()), ["group.yaml", "rep_0", "rep_1", "rep_2"])
+            self.assertEqual(read_yaml(group_dir / "group.yaml")["status"], "ok")
+            seeds = [read_yaml(group_dir / f"rep_{i}" / "artifacts" / "run.yaml")["seed"] for i in range(3)]
+            self.assertEqual(seeds, [7, 8, 9])
+            for i in range(3):
+                self.assertIn(f"runtime.seed={7 + i}", read_yaml(group_dir / f"rep_{i}" / "config" / "overrides.yaml")["overrides"])
 
     def test_train_does_not_export_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

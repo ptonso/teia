@@ -31,15 +31,22 @@ class RuntimeLayout:
     artifacts_dir: Path
 
 
-def resolve_runtime_layout(config: dict[str, Any], project_dir: Path, cli_run_name: str | None = None) -> RuntimeLayout:
+def resolve_runtime_layout(
+    config: dict[str, Any], project_dir: Path, cli_run_name: str | None = None, *, parent_dir: Path | None = None
+) -> RuntimeLayout:
     project_path = Path(project_dir).resolve()
     runs_root = _resolve_root_path(project_path, config.get("runs_root", "runs"))
     cache_root = _resolve_root_path(project_path, config.get("cache_root", ".teia-cache"))
 
     resolved_run_name = slugify(str(cli_run_name or config.get("run_name") or timestamp_slug()))
-    parts = _resolve_run_parts(config=config, resolved_run_name=resolved_run_name)
-    run_dir = runs_root.joinpath(*parts) if parts else runs_root / resolved_run_name
-    run_dir, resolved_run_name = _resolve_unique_run_dir(run_dir, resolved_run_name)
+    if parent_dir is not None:
+        run_dir = Path(parent_dir) / resolved_run_name
+        if run_dir.exists():
+            raise FileExistsError(f"Replica directory already exists: {run_dir}")
+    else:
+        parts = _resolve_run_parts(config=config, resolved_run_name=resolved_run_name)
+        run_dir = runs_root.joinpath(*parts) if parts else runs_root / resolved_run_name
+        run_dir, resolved_run_name = _resolve_unique_run_dir(run_dir, resolved_run_name)
 
     return RuntimeLayout(
         project_dir=project_path,

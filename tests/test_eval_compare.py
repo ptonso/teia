@@ -18,7 +18,6 @@ from teia.core.capture.store import CaptureWriter
 from teia.node.eval.compare.factor_diff import FactorDiff
 from teia.node.eval.compare.metric_table import MetricTable
 from teia.node.eval.compare.pareto import Pareto
-from teia.node.eval.compare.seed_aggregate import SeedAggregate
 from teia.node.eval.view.summary import Summary
 
 from _store_helpers import load_evalmodule
@@ -94,19 +93,6 @@ class CompareComponentTests(unittest.TestCase):
             self.assertIn("a,0.9,10", rows[1])
             self.assertIn("b,0.92,10", rows[2])
             self.assertEqual(written, [root / "out" / "metric_table.csv"])
-
-    def test_seed_aggregate_groups_by_non_seed_overrides(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            _make_run(root / "a", run_id="a", accuracy=0.90, overrides=["trainer.max_epochs=10", "runtime.seed=1"])
-            _make_run(root / "b", run_id="b", accuracy=0.92, overrides=["trainer.max_epochs=10", "runtime.seed=2"])
-            _make_run(root / "c", run_id="c", accuracy=0.80, overrides=["trainer.max_epochs=20", "runtime.seed=1"])
-            sources = [RunEvalSource(root / name, split="test") for name in ("a", "b", "c")]
-
-            SeedAggregate().compare(sources, root / "out")
-            text = (root / "out" / "seed_aggregate.csv").read_text()
-            self.assertIn("trainer.max_epochs=10,2,a;b,0.91", text)
-            self.assertIn("trainer.max_epochs=20,1,c,0.8", text)
 
     def test_factor_diff_derives_the_non_seed_varying_key(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -209,7 +195,6 @@ class TeiaEvalCliTests(unittest.TestCase):
             rc = teia_eval_run(args)
             self.assertEqual(rc, 0)
             self.assertTrue((root / "out" / "metric_table.csv").exists())
-            self.assertTrue((root / "out" / "seed_aggregate.csv").exists())
 
     def test_multi_run_dir_honors_an_explicit_compare_bundle(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -223,7 +208,7 @@ class TeiaEvalCliTests(unittest.TestCase):
             rc = teia_eval_run(args)
             self.assertEqual(rc, 0)
             self.assertTrue((root / "out" / "metric_table.csv").exists())
-            self.assertFalse((root / "out" / "seed_aggregate.csv").exists())  # not in the custom bundle
+            self.assertEqual(sorted(path.name for path in (root / "out").iterdir()), ["metric_table.csv"])  # only the custom bundle ran
 
 
 if __name__ == "__main__":

@@ -14,12 +14,14 @@ Walk-through: every stage composes or rehydrates a config, validates it, applies
 
 - **stage**: `train`, `test`, `infer`, `export` or `eval`.
 - **run layout**: the directory fields a run resolves (`run_dir`, `config_dir`, `logs_dir`, `eval_dir`, `infer_dir`, `export_dir`, `artifacts_dir`) under `runs_root` and `cache_root`.
+- **group**: the directory holding the `rep_i` replicas of one replicated train, with its own `group.yaml` and aggregate `eval/`.
+- **replica**: one `rep_i` run of a group, a complete run directory.
 - **ram_guard**: the host-RAM watchdog applied before datamodule and module instantiation.
 - **determinism mode**: `runtime.determinism.mode`, the core-owned policy for deterministic algorithms.
 
 ## Map
 
-- `teia.core.runtime.engine`: the stage entrypoints. `composer`, `validate`, `layout`, `memory`, `determinism`, `hooks` and `run_descriptor` sit beside it.
+- `teia.core.runtime.engine`: the stage entrypoints. `composer`, `validate`, `layout`, `memory`, `determinism`, `hooks` and `run_descriptor` sit beside it. `group` (`train_group`) and `group_descriptor` (`group.yaml`) hold replicated runs.
 - Stage details: [infer](infer.md), [export](export.md), [eval](eval.md). Config inputs: [config](config.md).
 
 ## Contracts
@@ -35,6 +37,19 @@ Walk-through: every stage composes or rehydrates a config, validates it, applies
 - **eval**: rehydrate one or more snapshots and run the eval graph offline from each run's capture store, with no model, datamodule or trainer (see [cli](cli.md)).
 - **infer**: rehydrate, rebuild the datamodule for the new input source, predict, and write `infer/predictions.jsonl` (or `<output-dir>/predictions.jsonl`) plus additive `infer/io/<io_name>/`.
 - **export**: rehydrate, rebuild the module, load the checkpoint, extract the inference graph and runtime metadata, and write an ONNX-first bundle.
+
+### Replicated runs
+
+With `runtime.n_runs` above 1, `teia train` resolves one group directory through the usual run-parts rules, then trains replica `i` in `<group>/rep_<i>` with the override `runtime.seed=<base seed + i>`, a concrete integer. The base seed is the composed `runtime.seed`. Each replica is a complete run (its own snapshot, `run.yaml`, checkpoints, capture store and post-train report), so `test`, `infer`, `export` and `eval` accept a `rep_i` unchanged. After the last replica, the group writes `group.yaml` and its aggregate report ([eval](eval.md#group-reduction)), unless the report is skipped.
+
+With `n_runs` equal to 1 no group exists and the run directory is the one described by the run layout.
+
+```
+<group>/
+  group.yaml         n_runs, base seed, replica names, status
+  rep_0/ ... rep_<n-1>/
+  eval/              the aggregate report
+```
 
 ### Checkpoint selection
 
@@ -61,6 +76,12 @@ Deterministic behavior is runtime-wide. `runtime.determinism.mode` applies to al
 - `trainer.benchmark=true` MUST be rejected when the determinism mode is `force` or `prefer`.
 - The engine MUST NOT hold the module or datamodule alive for the eval pass. Eval nodes read the capture store, never live objects.
 - Fallback checkpoint search MUST exclude `export/` and `infer/`.
+- A group directory MUST hold only `group.yaml`, `eval/` and `rep_<i>/` directories, and a replica MUST NOT read another replica's files.
+- Replica seeds MUST be distinct, and the seed of replica `i` MUST be the base seed plus `i`.
+- A failed replica MUST stop the group and MUST NOT leave a `group.yaml` with status `ok`.
 - Optional dependency checks are lazy: only the encountered non-core target closure is validated before stage build, and suggestions are enriched only after a dependency-shaped failure.
 - Instantiation errors MUST include the dotted config path and the attempted `_target_`. A hook object that is neither callable nor exposes `run()` emits a `UserWarning` and is skipped.
 
+## History
+
+- [2026-10-17 replicated runs and a cross-run reducer](../logs/2026-10-17_replicated-runs-and-reducer.md): the group directory and per-replica seeds.

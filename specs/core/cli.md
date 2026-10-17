@@ -34,7 +34,7 @@ Walk-through: `teia train` composes, instantiates the datamodule and module, per
 - `teia config explain <overrides...>`: no flags.
 - `teia config lint`: no flags.
 - `teia train`: `--project-dir`, `--config-dir`, `--run-name`, `--from-run-dir`, `--from-run-weights`, `--checkpoint`, and the post-train toggles `--dry-run`, `--skip-post-test`, `--skip-report`, `--export`.
-- `teia eval`: one or more `--run-dir` (repeatable), `--split` (capture split, default `test`), `--output-dir` (default `<run-dir>/eval`, or `./compare` for several runs), `--compare <yaml>` (a `compare:` node map, default `core/conf/compare/default.yaml`).
+- `teia eval`: one or more `--run-dir` (repeatable; a group directory reduces its replicas, see [eval](eval.md#group-reduction)), `--split` (capture split, default `test`), `--output-dir` (default `<run-dir>/eval`, or `./compare` for several runs), `--compare <yaml>` (a `compare:` node map, default `core/conf/compare/default.yaml`).
 - `teia test`, `teia infer`, `teia export`: required `--run-dir`, plus `--checkpoint` and `--output-dir`. `test` also takes `--skip-report`. `infer` also takes `--src` (new input data) and `--dst` (prediction destination, alias of `--output-dir`, which `--dst` wins over).
 
 ### Behavior
@@ -48,6 +48,7 @@ Walk-through: `teia train` composes, instantiates the datamodule and module, per
 - `config tree` prints the config-group directory tree merged across all layers, each entry tagged with the layers that provide it. `--node-only` drops options, `--level` caps depth and `--root` scopes a subtree.
 - `config explain` composes once with all overrides and once per group-level override removed (`task=`, `<graph>module=`), then diffs `hydra.runtime.choices` to attribute each changed group to the override that set it. A mount swap (`node/net/encoder@netmodule.encoder=x`) only composes on top of the module that mounts it, so it is left out of those recompositions and attributed to `CLI`.
 - `config lint` checks that every `node/*` leaf has no `# @package` header and no `in`/`out`, that no module carries a `_target_`, that every task preset follows [task](task.md#constraints), and that every module lives under a `<graph>module/<task>/` folder with a matching `task/<task>.yaml`.
+- `train` with `runtime.n_runs` above 1 runs the train stage once per replica into a group directory, then writes the aggregate report ([runtime](runtime.md#replicated-runs)).
 - `train` composes (fresh or continued), persists the overlay plus `composed.yaml`, `overrides.yaml` and `hydra.yaml`, trains, optionally chains test and eval, and exports only when config or `--export` enables it.
 - `eval` rebuilds one run's `eval/` or, with several runs, runs the `compare/` nodes across them. It reads each run's snapshot and capture store, and `evalmodule` overrides apply, so a new plot can be added to an old run without retraining.
 - `test`, `infer` and `export` rehydrate from the snapshot, rebuild the module (and datamodule), load the checkpoint and run their stage.
@@ -68,5 +69,9 @@ teia export --run-dir runs/... export.output_dir=/tmp/bundle
 - The CLI MUST NOT bypass Hydra composition.
 - `teia train` is the only stage that may boot from live project config or a parent snapshot. `--from-run-dir` MUST be mutually exclusive with `--project-dir` and `--config-dir`.
 - `test`, `infer` and `export` MUST NOT compose from the live project tree when `--run-dir` is provided.
+- `--from-run-dir` MUST be rejected when `runtime.n_runs` is above 1.
 - `teia train` MUST run post-train test and the eval graph when a test split exists, unless disabled by config or CLI. Post-train export runs only when enabled by config or `--export`.
 
+## History
+
+- [2026-10-17 replicated runs and a cross-run reducer](../logs/2026-10-17_replicated-runs-and-reducer.md): `train` replicates on `runtime.n_runs`, and `eval` accepts a group directory.

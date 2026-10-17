@@ -14,9 +14,12 @@ Versioning rules: [specs/stability](specs/stability.md).
 - `evalmodule/vision-gen/default` scores `rfid` (Inception pool3, reconstructions vs test images) and writes `rfid.*` summary keys; `frechet_distance`/`kernel_distance` keys of the old profile are gone.
 - `FrechetDistance` and `KernelDistance` raise on an empty side instead of returning counts only. `KernelDistance` averages a subset MMD^2 with `kernel: poly3` (KID) by default; `rbf` is the previous kernel.
 - `EmbeddingAccumulator.update_paths` takes its batch size from the constructor.
+- The `seed_aggregate` compare node is removed. `runtime.n_runs` with `teia eval --run-dir <group>` reports mean and sample std (ddof=1) per replica set.
 
 ### Added
 
+- `runtime.n_runs`: `teia train` trains the config n times into a group directory of `rep_i` runs with seeds `runtime.seed + i`, then writes an aggregate report.
+- Cross-replica reducer (`teia.core.eval.reduce`): reduces metric results by value shape into the mean with `_std` and `_values` siblings; `ranked_bar` draws error bars and `multi_curve_bundle` draws `y_std` bands.
 - Task `graph-node-cls` with its `graph-node-cls/{coco_graph,coco_knn,labelme_graph}` datamodules and `timm_{gatv2,graphformer,no_graph}` netmodules.
 - `GraphEncoder` (`graph_{gatv2,gin,graphormer,sage,transformer}`) and the `NodePack`/`NodeUnpack` adapters.
 - Graph data nodes: `EdgeAdjacency`/`KnnAdjacency`, `CropNodes`, `NodeBoxes`, the `coco_graph`/`labelme_graph` reader extensions and the graph collates.

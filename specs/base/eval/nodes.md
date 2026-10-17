@@ -117,7 +117,7 @@ match_det:
 
 ### Views
 
-A view is typed by the geometry of what it draws, not by what the data means. See [eval/layout](../../eval/layout.md).
+A view is typed by the geometry of what it draws, not by what the data means. See [eval/layout](../../eval/layout.md). A view may declare an optional `<kwarg>_std` parameter, which the runner fills from the `_std` sibling of the same field in a reduced result and leaves `None` otherwise ([eval/reducer](../../eval/reducer.md#view-intervals)).
 
 ## Extending
 
@@ -134,3 +134,6 @@ To add a metric, subclass `Metric` under `teia.node.eval.metric.<pairing>/`, imp
 - Monitor names published by the active graph MUST be unique within a split, and a duplicate is a hard pre-flight error.
 - A kernel MUST be a pure function and MUST NOT declare `in`/`out`.
 
+## History
+
+- [2026-10-17 replicated runs and a cross-run reducer](../../logs/2026-10-17_replicated-runs-and-reducer.md): views take optional std siblings.

@@ -67,6 +67,7 @@ def train_project(
     skip_report: bool = False,
     skip_export: bool | None = None,
     skip_post_test: bool = False,
+    parent_dir: Path | None = None,
 ) -> dict[str, Any]:
     (
         config,
@@ -95,6 +96,7 @@ def train_project(
         source_conf_root=source_conf_root,
         run_name=run_name,
         overrides=resolved_overrides,
+        parent_dir=parent_dir,
     )
     context.update(lineage)
     start_run_descriptor(run_dir=context["run_dir"], config=config)
@@ -754,8 +756,9 @@ def _prepare_train_context(
     source_conf_root: Path,
     run_name: str | None,
     overrides: list[str],
+    parent_dir: Path | None = None,
 ) -> dict[str, Any]:
-    layout = resolve_runtime_layout(config=config, project_dir=project_dir, cli_run_name=run_name)
+    layout = resolve_runtime_layout(config=config, project_dir=project_dir, cli_run_name=run_name, parent_dir=parent_dir)
     ensure_dir(layout.runs_root)
     ensure_dir(layout.run_dir)
     _apply_runtime_layout_metadata(config, layout)

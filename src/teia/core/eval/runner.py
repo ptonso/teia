@@ -10,14 +10,17 @@ memory for the pass only; re-running a view re-runs its upstream metric.
 from __future__ import annotations
 
 import csv
+import inspect
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from teia.base.eval import EvalSource
+from teia.core.eval.reduce import reduce
 from teia.core.eval.graph import EvalNodeRecord, build_eval_graph, discover_node_entries, resolve_component_class
 from teia.core.instantiate import instantiate
+from teia.core.runtime.group_descriptor import replica_dirs
 from teia.core.capture.store import CaptureStore, store_dir
 from teia.core.utils import ensure_dir, teia_log, read_yaml
 
@@ -195,6 +198,29 @@ def _resolve_inputs(record: EvalNodeRecord, *, source: EvalSource, results: dict
     return resolved
 
 
+def _std_inputs(record: EvalNodeRecord, component: Any, *, results: dict[str, Any]) -> dict[str, Any]:
+    """For each ``<kwarg>_std`` parameter the view's ``render`` declares, the ``_std`` sibling of the
+    field its ``<kwarg>`` reads from a reduced ``eval.*`` result, or ``None`` when it is absent."""
+    if record.in_fields is None:
+        return {}
+    params = inspect.signature(component.render).parameters
+    resolved: dict[str, Any] = {}
+    for kwarg_name, (source_key, field_path) in record.in_fields.items():
+        name = f"{kwarg_name}_std"
+        if name not in params:
+            continue
+        resolved[name] = None
+        segments = (field_path or "").split(".")
+        if not source_key.startswith("eval.") or not field_path or segments[-1].endswith("[]"):
+            continue
+        sibling = ".".join([*segments[:-1], f"{segments[-1]}_std"])
+        try:
+            resolved[name] = _walk_field_path(results[source_key], sibling)
+        except (KeyError, IndexError, TypeError):
+            pass
+    return resolved
+
+
 def _assign_result(results: dict[str, Any], out_key: list[str], outputs: dict[str, Any]) -> None:
     """Publish one metric's return value under its declared ``out_key``(s); the eval-plane
     counterpart of the data graph's ``executor._assign``.
@@ -285,7 +311,7 @@ def _run_records(
             outputs = component.from_source(source, **inputs, **extra.get(record.name, {}))
             _assign_result(results, record.out_key, outputs)
         elif record.kind == "view":
-            written[record.name] = component.render(out_dir, **inputs)
+            written[record.name] = component.render(out_dir, **inputs, **_std_inputs(record, component, results=results))
         else:
             raise ValueError(f"eval node '{record.name}': comparison nodes cannot run in a single-source pass.")
         components[record.name] = component
@@ -321,21 +347,51 @@ def required_splits(evalmodule: Mapping[str, Any] | None) -> set[str]:
     return {settings.split} | {str(entry["split"]) for entry in graph.values() if entry.get("split") is not None}
 
 
-def run_eval(run_dir: str | Path, *, graph: Mapping[str, Any], split: str = "test", out_dir: Path | None = None) -> dict[str, list[Path]]:
-    """Build the eval graph from a composed evalmodule's nodes and run it once, offline,
-    against ``run_dir``. No model, datamodule, or trainer is constructed."""
-    records = build_eval_graph(discover_node_entries(graph))
+def _require_stores(run_dir: str | Path, records: Sequence[EvalNodeRecord], split: str) -> None:
     for needed in sorted({split, *(record.split for record in records if record.split is not None)}):
         path = store_dir(Path(run_dir), needed)
         if not path.exists():
             raise FileNotFoundError(f"eval needs the '{needed}' capture at {path}; run `teia test --run-dir {run_dir}` to create it.")
+
+
+def _source_picker(run_dir: str | Path, split: str) -> Callable[[str | None], RunEvalSource]:
     sources: dict[str, RunEvalSource] = {}
 
-    def source_for(name: str) -> RunEvalSource:
-        return sources.setdefault(name, RunEvalSource(run_dir, split=name))
+    def pick(name: str | None) -> RunEvalSource:
+        key = split if name is None else name
+        return sources.setdefault(key, RunEvalSource(run_dir, split=key))
+
+    return pick
+
+
+def run_group_eval(group_dir: str | Path, *, graph: Mapping[str, Any], split: str = "test", out_dir: Path | None = None) -> dict[str, list[Path]]:
+    """Evaluate a group of replicas: metric nodes run once per replica, ``reduce`` folds their
+    results, and view nodes run once over the reduced results (see specs/eval/reducer.md).
+    Views reading capture columns directly see replica 0."""
+    replicas = replica_dirs(group_dir)
+    records = build_eval_graph(discover_node_entries(graph))
+    metrics = [record for record in records if record.kind == "metric"]
+    views = [record for record in records if record.kind == "view"]
+    resolved_out_dir = ensure_dir(Path(out_dir) if out_dir is not None else Path(group_dir) / "eval")
+    per_replica: list[dict[str, Any]] = []
+    for replica in replicas:
+        _require_stores(replica, records, split)
+        results: dict[str, Any] = {}
+        _run_records(metrics, source_for=_source_picker(replica, split), results=results, out_dir=resolved_out_dir, extra={})
+        per_replica.append(results)
+    written, _ = _run_records(views, source_for=_source_picker(replicas[0], split), results=reduce(per_replica), out_dir=resolved_out_dir, extra={})
+    return written
+
+
+def run_eval(run_dir: str | Path, *, graph: Mapping[str, Any], split: str = "test", out_dir: Path | None = None) -> dict[str, list[Path]]:
+    """Build the eval graph from a composed evalmodule's nodes and run it once, offline,
+    against ``run_dir``. No model, datamodule, or trainer is constructed."""
+    records = build_eval_graph(discover_node_entries(graph))
+    _require_stores(run_dir, records, split)
+    source_for = _source_picker(run_dir, split)
 
     resolved_out_dir = Path(out_dir) if out_dir is not None else Path(run_dir) / "eval"
-    return run_eval_graph(records, source=source_for(split), out_dir=resolved_out_dir, source_for=source_for)
+    return run_eval_graph(records, source=source_for(None), out_dir=resolved_out_dir, source_for=source_for)
 
 
 def run_offline_eval(config: dict[str, Any], context: dict[str, Any]) -> list[Path]:
@@ -354,4 +410,4 @@ def run_offline_eval(config: dict[str, Any], context: dict[str, Any]) -> list[Pa
     return paths
 
 
-__all__ = ["EvalPass", "EvalSettings", "RunEvalSource", "required_splits", "run_eval_graph", "run_eval", "run_offline_eval", "split_evalmodule"]
+__all__ = ["EvalPass", "EvalSettings", "RunEvalSource", "required_splits", "run_eval_graph", "run_eval", "run_group_eval", "run_offline_eval", "split_evalmodule"]

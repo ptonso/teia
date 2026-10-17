@@ -12,7 +12,8 @@ import argparse
 from pathlib import Path
 
 from teia.core.eval.compare_runner import run_compare
-from teia.core.eval.runner import RunEvalSource, run_eval, split_evalmodule
+from teia.core.eval.runner import RunEvalSource, run_eval, run_group_eval, split_evalmodule
+from teia.core.runtime.group_descriptor import is_group_dir, replica_dirs
 from teia.core.utils import ensure_dir, teia_log, read_yaml
 
 COMMAND_NAME = "eval"
@@ -41,7 +42,7 @@ def register_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentPars
         dest="compare_path",
         help="Path to a YAML file with a top-level `compare:` node map. Several --run-dir with "
         "no --compare uses the zero-config default from core/conf/compare/default.yaml "
-        "(metric_table, curve_overlay, factor_diff, seed_aggregate). Copy it and add "
+        "(metric_table, curve_overlay, factor_diff). Copy it and add "
         "objective-specific nodes (pareto, a single-metric factor_diff or curve_overlay) for a "
         "richer comparison.",
     )
@@ -57,6 +58,8 @@ def run(args: argparse.Namespace) -> int:
 
 
 def _run_single(run_dir: Path, *, split: str, output_dir: str | None) -> int:
+    if is_group_dir(run_dir):
+        return _run_group(run_dir, split=split, output_dir=output_dir)
     source = RunEvalSource(run_dir, split=split)
     _, graph = split_evalmodule(source.config().get("evalmodule"))
     if not graph:
@@ -68,6 +71,21 @@ def _run_single(run_dir: Path, *, split: str, output_dir: str | None) -> int:
     for path in paths:
         print(path)
     teia_log("teia eval complete", run_dir=str(run_dir), outputs=len(paths))
+    return 0
+
+
+def _run_group(group_dir: Path, *, split: str, output_dir: str | None) -> int:
+    first = replica_dirs(group_dir)[0]
+    _, graph = split_evalmodule(RunEvalSource(first, split=split).config().get("evalmodule"))
+    if not graph:
+        teia_log("teia eval: no evalmodule nodes in this group's composed config", run_dir=str(group_dir))
+        return 1
+    out_dir = ensure_dir(Path(output_dir).resolve() if output_dir else group_dir / "eval")
+    written = run_group_eval(group_dir, graph=graph, split=split, out_dir=out_dir)
+    paths = [path for node_paths in written.values() for path in node_paths]
+    for path in paths:
+        print(path)
+    teia_log("teia eval complete", run_dir=str(group_dir), outputs=len(paths))
     return 0
 
 

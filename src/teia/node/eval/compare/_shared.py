@@ -18,9 +18,8 @@ from teia.base.eval import EvalSource
 
 __all__ = ["run_id", "flat_metrics", "override_map", "SEED_KEYS"]
 
-#: Override keys treated as "seed, not a factor worth comparing on" by both `seed_aggregate`
-#: (excluded from its grouping key) and `factor_diff` (excluded from auto-derivation, since a
-#: seed sweep almost always coexists with the actual factor someone cares about).
+#: Override keys treated as "seed, not a factor worth comparing on" by `factor_diff` (excluded from
+#: auto-derivation, since a seed sweep almost always coexists with the actual factor someone cares about).
 SEED_KEYS = {"runtime.seed", "seed"}
 
 

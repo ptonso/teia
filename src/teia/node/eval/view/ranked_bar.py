@@ -43,7 +43,8 @@ class RankedBar(View):
     ``filename``, ``description``/``interpretation``/``blindspot``.
 
     Data (``render(**inputs)``): ``labels``, ``values``, optional ``support`` (same length as
-    ``labels``, drawn as small annotations next to each bar).
+    ``labels``, drawn as small annotations next to each bar), optional ``values_std`` (same length,
+    drawn as error bars; filled from the ``_std`` sibling of a reduced result).
     """
 
     def __init__(
@@ -75,20 +76,29 @@ class RankedBar(View):
         self.interpretation = interpretation
         self.blindspot = blindspot
 
-    def render(self, out_dir: Path, *, labels: list[str], values: list[float], support: list[float] | None = None) -> list[Path]:
+    def render(
+        self,
+        out_dir: Path,
+        *,
+        labels: list[str],
+        values: list[float],
+        support: list[float] | None = None,
+        values_std: list[float] | None = None,
+    ) -> list[Path]:
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         labels = list(labels)
         values = list(values)
         support = list(support or [])
+        errors = list(values_std) if values_std is not None else []
 
-        pages = self._paginate(labels, values, support)
+        pages = self._paginate(labels, values, support, errors)
         written: list[Path] = []
-        for page_index, (page_labels, page_values, page_support, sort_flag) in enumerate(pages):
+        for page_index, (page_labels, page_values, page_support, page_errors, sort_flag) in enumerate(pages):
             filename = _page_filename(self.filename, page_index, len(pages))
             title = _page_title(self.title, page_index, len(pages))
             dst = out_dir / filename
-            self._draw(dst, title, page_labels, page_values, page_support, sort_flag)
+            self._draw(dst, title, page_labels, page_values, page_support, page_errors, sort_flag)
             written.append(dst)
             write_description_sidecar(
                 out_dir,
@@ -101,11 +111,11 @@ class RankedBar(View):
         return written
 
     def _paginate(
-        self, labels: list[str], values: list[float], support: list[float]
-    ) -> list[tuple[list[str], list[float], list[float], bool]]:
+        self, labels: list[str], values: list[float], support: list[float], errors: list[float]
+    ) -> list[tuple[list[str], list[float], list[float], list[float], bool]]:
         if self.orientation == "vertical" or len(labels) <= RANKED_BAR_PAGE_SIZE:
-            return [(labels, values, support, self.sort)]
-        entries = list(zip(labels, values, support if support else [None] * len(labels), strict=False))
+            return [(labels, values, support, errors, self.sort)]
+        entries = list(zip(labels, values, support if support else [None] * len(labels), errors if errors else [None] * len(labels), strict=False))
         import math
         def safe_sort_key(item):
             val = item[1]
@@ -114,19 +124,22 @@ class RankedBar(View):
         if self.sort:
             entries.sort(key=safe_sort_key, reverse=True)
         chunks = _balanced_chunks(entries, RANKED_BAR_PAGE_SIZE)
-        pages: list[tuple[list[str], list[float], list[float], bool]] = []
+        pages: list[tuple[list[str], list[float], list[float], list[float], bool]] = []
         for chunk in chunks:
             page_entries = sorted(chunk, key=safe_sort_key) if self.sort else chunk
             page_labels = [item[0] for item in page_entries]
             page_values = [item[1] for item in page_entries]
             page_support = [item[2] for item in page_entries] if support else []
+            page_errors = [item[3] for item in page_entries] if errors else []
             # Already ordered correctly for drawing; _draw must not re-sort.
-            pages.append((page_labels, page_values, page_support, False))
+            pages.append((page_labels, page_values, page_support, page_errors, False))
         return pages
 
-    def _draw(self, dst: Path, title: str, labels: list[str], values: list[float], support: list[float], sort_flag: bool) -> None:
+    def _draw(
+        self, dst: Path, title: str, labels: list[str], values: list[float], support: list[float], errors: list[float], sort_flag: bool
+    ) -> None:
         has_support = bool(support)
-        entries = list(zip(labels, values, support if has_support else [0.0] * len(labels), strict=False))
+        entries = list(zip(labels, values, support if has_support else [0.0] * len(labels), errors if errors else [0.0] * len(labels), strict=False))
         import math
         def safe_sort_key(item):
             val = item[1]
@@ -137,6 +150,7 @@ class RankedBar(View):
         labels = [item[0] for item in entries]
         values = [item[1] for item in entries]
         support = [item[2] for item in entries]
+        xerr = [item[3] for item in entries] if errors else None
 
         figsize = self.figsize
         if figsize is None:
@@ -150,11 +164,11 @@ class RankedBar(View):
 
         support_note = ""
         if self.orientation == "vertical":
-            ax.bar(range(len(labels)), values)
+            ax.bar(range(len(labels)), values, yerr=xerr, capsize=2)
             ax.set_xticks(range(len(labels)))
             ax.set_xticklabels(_display_labels(labels, width=16, max_lines=3), rotation=45, ha="right", fontsize=8)
         else:
-            ax.barh(range(len(labels)), values)
+            ax.barh(range(len(labels)), values, xerr=xerr, capsize=2)
             ax.set_yticks(range(len(labels)))
             ax.set_yticklabels(_display_labels(labels, width=34, max_lines=3), fontsize=8)
             ax.margins(y=0.01)

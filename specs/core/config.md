@@ -55,6 +55,15 @@ defaults:
 
 `task` comes after the module groups, so a preset's `override /<graph>module` entries apply. CLI selections always win over the preset.
 
+### Replication
+
+```yaml
+runtime:
+  n_runs: 1     # int >= 1; above 1, `teia train` trains the config n_runs times into one group
+```
+
+Replica `i` trains with `runtime.seed` plus `i` ([runtime](runtime.md#replicated-runs)). `n_runs` is an ordinary override, so `teia train runtime.n_runs=5` works, and it is saved in `overrides.yaml` like any other.
+
 ### Node leaves
 
 A leaf holds a `_target_` and its parameters. It has no `# @package` header and no `in` or `out` wiring, because the mounting module supplies both.
@@ -156,4 +165,8 @@ It never duplicates the package tree. `teia train` snapshots only the project ov
 - An absent key MUST be written `++key=value`. The composer rejects a bare `+key=value`.
 - A `key=value` override whose dotted key is absent from the composed config emits a `UserWarning` (typo guard).
 - `data=`, `data_dir=` and path-valued module selections MUST fail before composition with a `data_root=` hint.
+- `runtime.n_runs` MUST be an integer of at least 1, and any other value MUST raise before training starts.
 
+## History
+
+- [2026-10-17 replicated runs and a cross-run reducer](../logs/2026-10-17_replicated-runs-and-reducer.md): `runtime.n_runs` as the one replication entry.

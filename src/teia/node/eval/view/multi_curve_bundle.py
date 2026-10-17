@@ -15,6 +15,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from teia.base.eval import View
 from teia.node.eval.view._shared import (
     _apply_report_style,
@@ -110,7 +112,10 @@ class MultiCurveBundle(View):
     def _draw(self, dst: Path, title: str, curves: list[dict[str, Any]]) -> None:
         fig, ax = plt.subplots(figsize=self.figsize or (8, 5))
         for curve in curves:
-            ax.plot(curve.get("x", []), curve.get("y", []), label=_display_label(curve.get("label"), width=30, max_lines=3))
+            (line,) = ax.plot(curve.get("x", []), curve.get("y", []), label=_display_label(curve.get("label"), width=30, max_lines=3))
+            if curve.get("y_std") is not None:
+                y, spread = np.asarray(curve["y"], dtype=float), np.asarray(curve["y_std"], dtype=float)
+                ax.fill_between(curve["x"], y - spread, y + spread, color=line.get_color(), alpha=0.2, linewidth=0)
         if self.baseline == "diagonal":
             ax.plot([0, 1], [0, 1], linestyle="--", color="gray")
         ax.set_xlabel(str(self.x_label))

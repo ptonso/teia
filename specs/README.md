@@ -33,7 +33,7 @@ These specs describe the contracts a contributor must respect.
 5. [core/module/overview](core/module/overview.md) and its siblings: the net plane.
    - [user_contracts](core/module/user_contracts.md), [nodes](core/module/nodes.md), [objective](core/module/objective.md), [activation_route](core/module/activation_route.md), [capture_map](core/module/capture_map.md)
    - [codegen](core/module/codegen.md), [dry_run](core/module/dry_run.md), [bind](core/module/bind.md), [optimization](core/module/optimization.md)
-6. [core/eval](core/eval.md), [eval/layout](eval/layout.md): capture and the eval plane, and the layout of its components.
+6. [core/eval](core/eval.md), [eval/layout](eval/layout.md), [eval/reducer](eval/reducer.md): capture and the eval plane, the layout of its components, and the cross-replica reducer.
 7. [core/infer](core/infer.md), [core/export](core/export.md): prediction and standalone bundles.
 
 **Component libraries.** Where a component lives and what it must obey.
@@ -41,3 +41,5 @@ These specs describe the contracts a contributor must respect.
 1. [data/layout](data/layout.md): the six data-node kind folders and the authoring patterns.
 2. [net/layout](net/layout.md), [net/types](net/types.md): `fan × assumes` placement, and the types across a forward boundary and the head → activation → loss route.
 3. [docstrings](docstrings.md): the provenance docstring every component carries.
+
+**Logs.** [logs/index](logs/index.md): the reasoning behind each change.

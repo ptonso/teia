@@ -22,12 +22,19 @@ def validate_composed_config(config: dict[str, Any]) -> None:
     if _datamodule_requires_data_root(config) and config.get("data_root") in (None, "???"):
         raise ValueError("Config data_root is required; configure dataset location at the config root.")
 
+    validate_n_runs(config)
     _validate_datamodule_contract(config)
     _validate_determinism_contract(config)
     _validate_task_contract(config)
     _validate_eval_deps(config)
     _validate_eval_wiring(config)
     _validate_eval_callbacks(config)
+
+
+def validate_n_runs(config: dict[str, Any]) -> None:
+    n_runs = (config.get("runtime") or {}).get("n_runs", 1)
+    if isinstance(n_runs, bool) or not isinstance(n_runs, int) or n_runs < 1:
+        raise ValueError(f"runtime.n_runs must be an integer of at least 1, got {n_runs!r}.")
 
 
 def _datamodule_requires_data_root(config: dict[str, Any]) -> bool:

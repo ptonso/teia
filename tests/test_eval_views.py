@@ -44,6 +44,17 @@ class RankedBarTests(unittest.TestCase):
             self.assertEqual(len(written), 1)
             self.assertEqual(written[0], out_dir / "per_class_f1.png")
 
+    def test_render_draws_error_bars_through_sorting_and_pagination(self) -> None:
+        count = RANKED_BAR_PAGE_SIZE + 5
+        labels = [f"class_{i}" for i in range(count)]
+        values = [float(i) for i in range(count)]
+        with tempfile.TemporaryDirectory() as tmp:
+            for orientation, size in (("horizontal", count), ("vertical", 3)):
+                written = RankedBar(title=f"Bars {orientation}", orientation=orientation).render(
+                    Path(tmp), labels=labels[:size], values=values[:size], values_std=[0.1] * size
+                )
+                _assert_nonempty_files(self, written)
+
     def test_render_vertical_never_paginates(self) -> None:
         view = RankedBar(title="Wide Vertical", orientation="vertical")
         labels = [f"class_{i}" for i in range(50)]
@@ -169,6 +180,12 @@ class MultiCurveBundleTests(unittest.TestCase):
             written = view.render(Path(tmp), curves=curves)
             _assert_nonempty_files(self, written)
             self.assertEqual(len(written), 1)
+
+    def test_render_draws_a_band_for_curves_with_y_std(self) -> None:
+        view = MultiCurveBundle(title="PR Band", x_label="Recall", y_label="Precision", baseline=None)
+        curves = [{"label": "macro", "x": [0.0, 0.5, 1.0], "y": [1.0, 0.6, 0.1], "y_std": [0.0, 0.1, 0.05]}]
+        with tempfile.TemporaryDirectory() as tmp:
+            _assert_nonempty_files(self, view.render(Path(tmp), curves=curves))
 
     def test_render_paginates_beyond_threshold_and_pins_macro(self) -> None:
         view = MultiCurveBundle(title="Dense ROC Curves", x_label="FPR", y_label="TPR", baseline="diagonal")

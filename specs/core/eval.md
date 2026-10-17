@@ -149,9 +149,14 @@ A second gate runs after the data graph's plan stage, where `meta` is known: `ch
 
 It is discovered by `pkgutil.iter_modules` over `teia.core.commands.__path__`, so it MUST live in core, because there is no entry-point mechanism for plugin commands ([cli](cli.md)).
 - With one `--run-dir`, it rebuilds that run's `eval/` from its own `evalmodule`.
-- With several run dirs and no `--compare` override, it runs the zero-config bundle `core/conf/compare/default.yaml`: `metric_table`, `curve_overlay` on `val/loss`, `factor_diff` and `seed_aggregate`, all task-agnostic.
+- With one `--run-dir` that is a group directory, it reduces the replicas ([group reduction](#group-reduction)).
+- With several run dirs and no `--compare` override, it runs the zero-config bundle `core/conf/compare/default.yaml`: `metric_table`, `curve_overlay` on `val/loss` and `factor_diff`, all task-agnostic.
 
 A comparison needing task-specific metric names is a copied bundle passed via `--compare`.
+
+### Group reduction
+
+A group directory (one holding `group.yaml`, see [runtime](runtime.md#replicated-runs)) is evaluated by the reducer ([eval/reducer](../eval/reducer.md)). The metric nodes of the evalmodule run against each replica's capture store, the reducer folds the per-replica `results`, and the view nodes run once over the reduced results into `<group>/eval/`. Every replica keeps its own `eval/`. Core stays free of component names: the reducer reads value shapes only.
 
 ### Run-directory layout
 
@@ -166,7 +171,7 @@ A comparison needing task-specific metric names is a copied bundle passed via `-
   checkpoints/  infer/  export/
 ```
 
-`eval/summary.yaml` is a flat scalar map and the join key for comparing runs. Every view writes flat into `eval/`.
+`eval/summary.yaml` is a flat scalar map and the join key for comparing runs. Every view writes flat into `eval/`. A group directory holds `group.yaml`, `rep_<i>/` run directories and an aggregate `eval/` ([runtime](runtime.md#replicated-runs)).
 
 ## Constraints
 
@@ -184,4 +189,8 @@ A comparison needing task-specific metric names is a copied bundle passed via `-
 - The contract, dependency, wiring and callback gates MUST run before `trainer.fit`.
 - Run artifacts MUST NOT contain absolute paths.
 - The walltime report MUST be emitted by every run.
+- A group evaluation MUST run metric nodes per replica and view nodes once, and MUST NOT feed a reduced result to a metric.
 
+## History
+
+- [2026-10-17 replicated runs and a cross-run reducer](../logs/2026-10-17_replicated-runs-and-reducer.md): group reduction replaces the `seed_aggregate` comparison.

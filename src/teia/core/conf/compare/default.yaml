@@ -9,5 +9,3 @@ compare:
   factor_diff:
     _target_: teia.node.eval.compare.factor_diff.FactorDiff
 
-  seed_aggregate:
-    _target_: teia.node.eval.compare.seed_aggregate.SeedAggregate

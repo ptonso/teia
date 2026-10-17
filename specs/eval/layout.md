@@ -1,6 +1,6 @@
 # Eval Layout Spec
 
-Related: **Read first** [../base/eval/nodes](../base/eval/nodes.md), [../core/eval](../core/eval.md). **See also** [../core/deps](../core/deps.md), [../core/task](../core/task.md), [../core/config](../core/config.md).
+Related: **Read first** [../base/eval/nodes](../base/eval/nodes.md), [../core/eval](../core/eval.md). **See also** [reducer](reducer.md), [../core/deps](../core/deps.md), [../core/task](../core/task.md), [../core/config](../core/config.md).
 
 ## Overview
 
@@ -40,7 +40,7 @@ teia/node/eval/
   view/<component>.py          # ranked_bar, matrix_heatmap, scatter_plot, multi_curve_bundle,
                                #   calibration_diagram, threshold_curve, grouped_histogram,
                                #   binary_confusion_grid, table, summary
-  compare/<component>.py       # metric_table, curve_overlay, seed_aggregate, factor_diff, pareto
+  compare/<component>.py       # metric_table, curve_overlay, factor_diff, pareto
   kernel/<component>.py        # iou_xyxy, iou_rotated, iou_mask, oks   (sub-nodes, not eval nodes)
 ```
 
@@ -74,6 +74,8 @@ gfid:
 `KernelDistance` averages the unbiased MMD^2 over random subset pairs (`subsets`, `subset_size`), so memory stays at `subset_size^2`. Its `kernel` is `poly3` (KID with `InceptionPool3`) or `rbf`.
 
 ### Views
+
+A view may declare `<kwarg>_std` parameters to draw the intervals of a reduced result ([reducer](reducer.md#view-intervals)).
 
 Views are grouped by payload geometry, and there are nine: `ranked_bar`, `matrix_heatmap`, `scatter_plot`, `multi_curve_bundle`, `calibration_diagram`, `threshold_curve`, `grouped_histogram`, `binary_confusion_grid`, `table`. A named plot is a wiring, not a class: `per_class_f1_bar_sorted` and `per_class_average_precision_bar_sorted` are one `ranked_bar` wired twice. This keeps a plot inventory of about 90 at about 10 view classes.
 
@@ -167,3 +169,6 @@ Place a new component by ABC kind, then by pairing for a metric or by payload ge
 - The `summary` view MUST raise when two inputs publish the same scalar key with different values; `namespace: true` writes each key as `<input atom>.<field>`.
 - Every leaf module MUST expose exactly one public component, and its `_target_` MUST be the canonical `teia.node.eval.<kind>.<component>.<ClassName>` path.
 
+## History
+
+- [2026-10-17 replicated runs and a cross-run reducer](../logs/2026-10-17_replicated-runs-and-reducer.md): `seed_aggregate` removed, views read std siblings.

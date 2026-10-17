@@ -6,6 +6,8 @@ from pathlib import Path
 from teia.core.commands._runtime import add_train_runtime_args, dump_cfg
 from teia.core.runtime.composer import compose_overlay_config, compose_run_config_tree
 from teia.core.runtime.engine import train_project
+from teia.core.runtime.group import train_group
+from teia.core.runtime.validate import validate_n_runs
 
 
 COMMAND_NAME = "train"
@@ -56,6 +58,22 @@ def run(args: argparse.Namespace) -> int:
             )
         return dump_cfg(args.cfg, composed, hydra_payload)
 
+    n_runs = _n_runs(project_dir=project_dir, config_dir=config_dir, from_run_dir=from_run_dir, overrides=overrides)
+    if n_runs > 1:
+        if from_run_dir is not None:
+            raise ValueError("--from-run-dir cannot be used with runtime.n_runs above 1.")
+        train_group(
+            project_dir=project_dir,
+            config_dir=config_dir,
+            overrides=overrides,
+            run_name=args.run_name,
+            checkpoint=args.checkpoint,
+            skip_post_test=args.skip_post_test,
+            skip_report=args.skip_report,
+            skip_export=args.skip_export,
+        )
+        return 0
+
     train_project(
         project_dir=project_dir,
         config_dir=config_dir,
@@ -69,3 +87,12 @@ def run(args: argparse.Namespace) -> int:
         skip_export=args.skip_export,
     )
     return 0
+
+
+def _n_runs(*, project_dir: Path | None, config_dir: Path | None, from_run_dir: Path | None, overrides: list[str]) -> int:
+    if from_run_dir is not None:
+        composed, *_ = compose_run_config_tree(run_dir=from_run_dir, overrides=overrides)
+    else:
+        composed, _ = compose_overlay_config(project_dir=project_dir, config_dir=config_dir, overrides=overrides)
+    validate_n_runs(composed)
+    return int(composed["runtime"]["n_runs"])
