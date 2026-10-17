@@ -18,6 +18,7 @@ Versioning rules: [specs/stability](specs/stability.md).
 
 ### Added
 
+- `teia sweep`: Hydra sweep expressions in the overrides define a grid or seeded random search, scored on `sweep.objective` (`sweep.n_trials`, `sweep.mode`) over `runtime.n_runs` replicas without computing test.
 - `runtime.n_runs`: `teia train` trains the config n times into a group directory of `rep_i` runs with seeds `runtime.seed + i`, then writes an aggregate report.
 - Cross-replica reducer (`teia.core.eval.reduce`): reduces metric results by value shape into the mean with `_std` and `_values` siblings; `ranked_bar` draws error bars and `multi_curve_bundle` draws `y_std` bands.
 - Task `graph-node-cls` with its `graph-node-cls/{coco_graph,coco_knn,labelme_graph}` datamodules and `timm_{gatv2,graphformer,no_graph}` netmodules.

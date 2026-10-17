@@ -9,6 +9,11 @@ run_parts:
 - experiment
 - run
 
+sweep:
+  n_trials: null
+  objective: null
+  mode: null
+
 # CLI aliases for the resolved keys above
 project: ???
 experiment: ???

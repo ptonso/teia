@@ -55,6 +55,17 @@ defaults:
 
 `task` comes after the module groups, so a preset's `override /<graph>module` entries apply. CLI selections always win over the preset.
 
+### Sweep
+
+```yaml
+sweep:
+  n_trials: null
+  objective: null
+  mode: null
+```
+
+Read by `teia sweep` ([sweep](sweep.md)) and ignored by every other command.
+
 ### Replication
 
 ```yaml
@@ -170,3 +181,4 @@ It never duplicates the package tree. `teia train` snapshots only the project ov
 ## History
 
 - [2026-10-17 replicated runs and a cross-run reducer](../logs/2026-10-17_replicated-runs-and-reducer.md): `runtime.n_runs` as the one replication entry.
+- [2026-10-17 the sweep command](../logs/2026-10-17_sweep-command.md): `sweep` keys.

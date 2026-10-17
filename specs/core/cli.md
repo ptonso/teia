@@ -1,6 +1,6 @@
 # CLI Spec
 
-Related: **Read first** [overview](overview.md), [config](config.md). **See also** [runtime](runtime.md), [infer](infer.md), [export](export.md), [eval](eval.md).
+Related: **Read first** [overview](overview.md), [config](config.md). **See also** [sweep](sweep.md), [runtime](runtime.md), [infer](infer.md), [export](export.md), [eval](eval.md).
 
 ## Overview
 
@@ -24,7 +24,7 @@ Walk-through: `teia train` composes, instantiates the datamodule and module, per
 
 ### Commands
 
-`teia config` (`init`, `list`, `show`, `tree`, `explain`, `lint`), `teia train`, `teia test`, `teia infer`, `teia export`, `teia eval`, and `teia init` (`--project-root`, default `.`; creates `conf/` and links the skills of `teia` and of every installed plugin). `teia plugin init [path] --name` scaffolds a plugin and `teia plugin check [path] [--publish] [--namespace]` verifies one ([plugin](../plugin.md)). Every runtime command (`train`, `test`, `infer`, `export`) also accepts `-c/--cfg {job,hydra,all}` to print the composed config as YAML and exit. All runtime commands accept Hydra overrides.
+`teia config` (`init`, `list`, `show`, `tree`, `explain`, `lint`), `teia train`, `teia sweep`, `teia test`, `teia infer`, `teia export`, `teia eval`, and `teia init` (`--project-root`, default `.`; creates `conf/` and links the skills of `teia` and of every installed plugin). `teia plugin init [path] --name` scaffolds a plugin and `teia plugin check [path] [--publish] [--namespace]` verifies one ([plugin](../plugin.md)). Every runtime command (`train`, `test`, `infer`, `export`) also accepts `-c/--cfg {job,hydra,all}` to print the composed config as YAML and exit. All runtime commands accept Hydra overrides.
 
 ### Flags
 
@@ -34,6 +34,7 @@ Walk-through: `teia train` composes, instantiates the datamodule and module, per
 - `teia config explain <overrides...>`: no flags.
 - `teia config lint`: no flags.
 - `teia train`: `--project-dir`, `--config-dir`, `--run-name`, `--from-run-dir`, `--from-run-weights`, `--checkpoint`, and the post-train toggles `--dry-run`, `--skip-post-test`, `--skip-report`, `--export`.
+- `teia sweep`: `--project-dir`, `--config-dir`, `--run-name` and Hydra overrides, some of them sweep expressions ([sweep](sweep.md)).
 - `teia eval`: one or more `--run-dir` (repeatable; a group directory reduces its replicas, see [eval](eval.md#group-reduction)), `--split` (capture split, default `test`), `--output-dir` (default `<run-dir>/eval`, or `./compare` for several runs), `--compare <yaml>` (a `compare:` node map, default `core/conf/compare/default.yaml`).
 - `teia test`, `teia infer`, `teia export`: required `--run-dir`, plus `--checkpoint` and `--output-dir`. `test` also takes `--skip-report`. `infer` also takes `--src` (new input data) and `--dst` (prediction destination, alias of `--output-dir`, which `--dst` wins over).
 
@@ -49,6 +50,7 @@ Walk-through: `teia train` composes, instantiates the datamodule and module, per
 - `config explain` composes once with all overrides and once per group-level override removed (`task=`, `<graph>module=`), then diffs `hydra.runtime.choices` to attribute each changed group to the override that set it. A mount swap (`node/net/encoder@netmodule.encoder=x`) only composes on top of the module that mounts it, so it is left out of those recompositions and attributed to `CLI`.
 - `config lint` checks that every `node/*` leaf has no `# @package` header and no `in`/`out`, that no module carries a `_target_`, that every task preset follows [task](task.md#constraints), and that every module lives under a `<graph>module/<task>/` folder with a matching `task/<task>.yaml`.
 - `train` with `runtime.n_runs` above 1 runs the train stage once per replica into a group directory, then writes the aggregate report ([runtime](runtime.md#replicated-runs)).
+- `sweep` splits the overrides into a baseline and dimensions and trains one run or group per trial, scoring each on `sweep.objective` ([sweep](sweep.md)).
 - `train` composes (fresh or continued), persists the overlay plus `composed.yaml`, `overrides.yaml` and `hydra.yaml`, trains, optionally chains test and eval, and exports only when config or `--export` enables it.
 - `eval` rebuilds one run's `eval/` or, with several runs, runs the `compare/` nodes across them. It reads each run's snapshot and capture store, and `evalmodule` overrides apply, so a new plot can be added to an old run without retraining.
 - `test`, `infer` and `export` rehydrate from the snapshot, rebuild the module (and datamodule), load the checkpoint and run their stage.
@@ -75,3 +77,4 @@ teia export --run-dir runs/... export.output_dir=/tmp/bundle
 ## History
 
 - [2026-10-17 replicated runs and a cross-run reducer](../logs/2026-10-17_replicated-runs-and-reducer.md): `train` replicates on `runtime.n_runs`, and `eval` accepts a group directory.
+- [2026-10-17 the sweep command](../logs/2026-10-17_sweep-command.md): the `sweep` command.

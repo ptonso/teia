@@ -28,7 +28,7 @@ These specs describe the contracts a contributor must respect.
 
 1. [core/overview](core/overview.md): the package surface and workflow.
 2. [core/config](core/config.md), [core/task](core/task.md), [core/cli](core/cli.md), [core/deps](core/deps.md): configuration, tasks and their presets, commands and dependencies.
-3. [core/runtime](core/runtime.md): stage execution, run layout and guards.
+3. [core/runtime](core/runtime.md), [core/sweep](core/sweep.md): stage execution, run layout and guards, and hyperparameter sweeps.
 4. [core/data_graph](core/data_graph.md), [core/datamodule](core/datamodule.md): the data plane and its executor.
 5. [core/module/overview](core/module/overview.md) and its siblings: the net plane.
    - [user_contracts](core/module/user_contracts.md), [nodes](core/module/nodes.md), [objective](core/module/objective.md), [activation_route](core/module/activation_route.md), [capture_map](core/module/capture_map.md)
