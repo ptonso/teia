@@ -1,0 +1,12 @@
+# @package _global_
+defaults:
+  - override /datamodule: graph-node-cls/coco_graph
+  - override /netmodule: graph-node-cls/timm_gatv2
+  - override /evalmodule: graph-node-cls/default
+  - override /callbacks: vision_fitness
+  - override /trainer: vision_default
+  - _self_
+
+task:
+  _target_: teia.task.graph_node_cls.GraphNodeCls
+seed: 0

@@ -17,6 +17,7 @@ Versioning rules: [specs/stability](specs/stability.md).
 
 ### Added
 
+- Task `graph-node-cls` with its `graph-node-cls/{coco_graph,coco_knn,labelme_graph}` datamodules and `timm_{gatv2,graphformer,no_graph}` netmodules.
 - `GraphEncoder` (`graph_{gatv2,gin,graphormer,sage,transformer}`) and the `NodePack`/`NodeUnpack` adapters.
 - Graph data nodes: `EdgeAdjacency`/`KnnAdjacency`, `CropNodes`, `NodeBoxes`, the `coco_graph`/`labelme_graph` reader extensions and the graph collates.
 - `adamw_warmup_decay` and `adamw_graph` optimizer leaves, the `vision_default` and `vision_fitness` callbacks and the `vision_default` trainer.

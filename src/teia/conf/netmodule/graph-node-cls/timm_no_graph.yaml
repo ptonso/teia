@@ -1,0 +1,39 @@
+defaults:
+  - /node/net/encoder@encoder: timm_resnet18
+  - /node/net/adapter@pack: node_pack
+  - /node/net/head@head: pointwise_mlp
+  - /node/net/adapter@unpack: node_unpack
+  - /node/net/loss@loss: cross_entropy
+  - /node/net/act@act: softmax
+  - /optim@_here_: adamw_graph
+  - _self_
+
+encoder:
+  in: batch.node_image
+  out:
+    feat.pooled: null
+pack:
+  in: [feat.pooled, batch.node_box, batch.node_mask]
+  out:
+    feat.nodes: null
+head:
+  in: feat.nodes
+  out:
+    pred.node_logits: [num_classes]
+unpack:
+  in: [pred.node_logits, batch.node_mask]
+  out:
+    pred.logits: null
+loss:
+  in: [pred.logits, batch.cls]
+  out:
+    loss.cls: null
+  weight: 1.0
+act:
+  in: pred.logits
+  out:
+    act.probs: null
+
+capture:
+  cls.scores: act.probs
+  cls.label: post.act.label
