@@ -63,7 +63,7 @@ class DotAttention(nn.Module):
 
         a = F.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=self.dropout if self.training else 0.0)
 
-        return self.out(a.transpose(1, 2).reshape(b, n, d))
+        return self.out(a.transpose(1, 2).clone(memory_format=torch.contiguous_format).view(b, n, d))
 
 
 class GATv2Attention(nn.Module):

@@ -176,3 +176,17 @@ def test_sage_normalize_fixes_the_output_norm_and_off_follows_the_input():
 def test_normalize_false_needs_the_concat_combine():
     with pytest.raises(ValueError, match="normalize"):
         GraphEncoder(in_shape=[(0, D), (0, 0), (0,)], combine="residual", normalize=False)
+
+
+@pytest.mark.parametrize("path", LEAVES, ids=lambda p: p.stem)
+def test_encoder_exports_to_onnx_with_dynamic_batch(path, tmp_path):
+    pytest.importorskip("onnxscript")
+    encoder = leaf(path)
+    nodes, adj = board(8, torch.Generator().manual_seed(2))
+    n, a, m = pad(nodes, adj, 8)
+    inputs = (n.repeat(2, 1, 1), a.repeat(2, 1, 1), m.repeat(2, 1))
+    torch.onnx.export(
+        encoder, inputs, str(tmp_path / "graph.onnx"), dynamo=True, opset_version=18,
+        dynamic_shapes=[{0: torch.export.Dim("batch")} for _ in inputs],
+    )
+    assert (tmp_path / "graph.onnx").exists()
