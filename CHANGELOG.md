@@ -17,6 +17,7 @@ Versioning rules: [specs/stability](specs/stability.md).
 
 ### Added
 
+- Graph data nodes: `EdgeAdjacency`/`KnnAdjacency`, `CropNodes`, `NodeBoxes`, the `coco_graph`/`labelme_graph` reader extensions and the graph collates.
 - `adamw_warmup_decay` and `adamw_graph` optimizer leaves, the `vision_default` and `vision_fitness` callbacks and the `vision_default` trainer.
 - `BalancedCrossEntropyLoss` (`balanced_cross_entropy`).
 - `TimmEncoder` (`timm_resnet18`, `timm_siglip`; extra `vision`) with `chunk_size`: checkpointed chunks in training, plain chunks in eval and when frozen.

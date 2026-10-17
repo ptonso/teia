@@ -1,0 +1,2 @@
+_target_: teia.node.data.transform.adjacency.KnnAdjacency
+k: 4

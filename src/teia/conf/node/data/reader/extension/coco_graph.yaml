@@ -1,0 +1,2 @@
+_target_: teia.node.data.reader.extension.coco_graph.CocoGraph
+path: graph.json
