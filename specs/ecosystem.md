@@ -19,6 +19,9 @@ Walk-through: a researcher starts a private project as a plugin, builds a new co
 - **baseline**: an existing method a project compares against.
 - **wrapper**: a component that makes code which does not speak the language usable as a teia component.
 - **upstream**: the external repository a wrapper or baseline comes from.
+- **reference leaf**: the node leaf named after a component, holding that component's own defaults.
+- **wiring**: a module or a task preset, a config that connects leaves into a graph.
+- **tuned recipe**: wiring or a system config (trainer, callbacks, optimizer) chosen to perform well on some data.
 
 ## Map
 
@@ -26,6 +29,7 @@ Walk-through: a researcher starts a private project as a plugin, builds a new co
 |---|---|---|
 | `teia` | the language, the task contracts and the zoo of standard building blocks ([stability](stability.md)) | on PyPI as `pyteia` |
 | research plugin | one project's contribution, its baselines and their configs | with the paper, as a tagged repository or on PyPI |
+| recipes plugin | versioned tuned recipes that run out of the box on top of `teia` | on PyPI, with its own version |
 | wrapper plugin | the wrappers of one external library, under that library's license | on PyPI or as a tagged repository |
 | private plugin | components still on test, private to their author | never |
 
@@ -42,8 +46,15 @@ Walk-through: a researcher starts a private project as a plugin, builds a new co
 | wrapper used by one project | that project |
 | wrapper used by several projects | its own wrapper plugin, licensed like the library it wraps |
 | baseline config and glue | the research plugin that runs it |
+| reference leaf of a component | the component's home |
+| evalmodule of a task | `teia`, beside the task contract |
+| format datamodule: one standard on-disk format read into a `teia` task's boundary A, with default augmentation | `teia`, one per task |
+| `linear_probe` netmodule of a task ([core/task](core/task.md#linear-probe)) | `teia`, one per task |
+| any other wiring, and every tuned recipe | the project that tuned it, arsenal, or a recipes plugin |
 
 A baseline is building blocks plus the config that reproduces one paper's setup. The blocks follow their own row of the table, and the config stays in the project.
+
+`teia` ships the machinery and promises no architecture. Wiring enters `teia` only when the contract or the data format determines it. A choice made to perform well (a backbone, a fusion, a graph construction, a learning rate) stays with the project that made it.
 
 ### Reuse
 
@@ -79,7 +90,7 @@ A project is ready to publish when:
 
 ## Extending
 
-A new research project starts as a plugin from day one ([plugin](plugin.md)). A component moves into `teia` when it is generic, tested, permissively licensed and used by more than one project, and the move is released as a minor version ([stability](stability.md)).
+A new research project starts as a plugin from day one ([plugin](plugin.md)). A component moves into `teia` when it is generic, tested, permissively licensed and used by more than one project, and the move is released as a minor version ([stability](stability.md)). It moves with its reference leaf, and the wiring that used it stays with the project that wrote it.
 
 ## Constraints
 
@@ -87,3 +98,9 @@ A new research project starts as a plugin from day one ([plugin](plugin.md)). A 
 - A published plugin MUST NOT depend on an unreleased package.
 - `teia` MUST NOT contain code under a copyleft license.
 - A wrapper MUST record its upstream repository, commit and license.
+- Every component `teia` ships MUST have a reference leaf in `teia`.
+- `teia` MUST NOT ship a tuned recipe, nor a netmodule other than `linear_probe` ([core/task](core/task.md#constraints)).
+
+## History
+
+- [2026-10-24 machinery-first configs](logs/2026-10-24_machinery-first-configs.md): why `teia` ships wiring only where the contract or the format determines it.

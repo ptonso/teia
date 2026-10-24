@@ -59,8 +59,8 @@ Walk-through: `teia train` composes, instantiates the datamodule and module, per
 
 ```text
 teia train task=vision-cls data_root=/ds/pets
-teia train task=vision-cls netmodule=vision-cls/mlp
-teia train task=vision-cls node/net/encoder@netmodule.encoder=mlp_tabular
+teia train task=vision-cls netmodule=vision-cls/mlp_pets
+teia train task=vision-cls netmodule=vision-cls/mlp_pets node/net/encoder@netmodule.encoder=mlp_tabular
 teia train --from-run-dir runs/.../head-warmup --from-run-weights best netmodule.encoder.freeze=false
 teia infer --run-dir runs/... infer.output_dir=/tmp/preds
 teia export --run-dir runs/... export.output_dir=/tmp/bundle
@@ -78,3 +78,4 @@ teia export --run-dir runs/... export.output_dir=/tmp/bundle
 
 - [2026-10-17 replicated runs and a cross-run reducer](../logs/2026-10-17_replicated-runs-and-reducer.md): `train` replicates on `runtime.n_runs`, and `eval` accepts a group directory.
 - [2026-10-17 the sweep command](../logs/2026-10-17_sweep-command.md): the `sweep` command.
+- [2026-10-24 machinery-first configs](../logs/2026-10-24_machinery-first-configs.md): examples select a project netmodule over the linear probe.

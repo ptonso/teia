@@ -4,29 +4,35 @@ Related: **Read first** [architecture](architecture.md). **See also** [ecosystem
 
 ## Overview
 
-`teia` ships as one distribution with three layers that change in different ways. The **language** (the engine and the base classes) almost never grows and is the part everything depends on. **Task contracts** form an open set: new tasks are added freely, and a task, once released, is frozen because it has become a shared language between the data graph, the net graph and the evaluation. The **zoo** (components, configs, task presets and default evalmodules) also grows freely, and its behavior and defaults improve over time.
+`teia` ships as one distribution with three layers that change in different ways. The **language** (the engine and the base classes) almost never grows and is the part everything depends on. **Task contracts** form an open set: new tasks are added freely, and a task, once released, is frozen together with its evalmodule and its `linear_probe`, because they have become a shared language between the data graph, the net graph and the evaluation. The **zoo** (components with their reference leaves, and the format datamodules) also grows freely, and its behavior and defaults improve over time. `teia` ships no tuned recipe, so no architecture result is promised ([ecosystem](ecosystem.md#where-code-lives)).
 
 The version number tells a user one thing: whether a project that ran on the previous version still runs. Changed numbers are not a breaking change. A run reproduces exactly from its config snapshot and the pinned `teia` version.
 
-Scenario: a release replaces the `vision-cls` default netmodule with a wider one. Every project still runs, so it is a minor release, listed under "Results may change". A project that needs last year's numbers pins the older version, and its old runs replay from their snapshots.
+Scenario: a release changes the default `dropout` of the `MLP` component, and with it the `mlp` reference leaf. Every project still runs, so it is a minor release, listed under "Results may change". A project whose netmodule relies on that default and needs last year's numbers pins the older version, and its old runs replay from their snapshots.
 
 ## Language
 
 - **language**: `teia.base`, `teia.core`, the batch-field vocabulary, the CLI and the config and run layouts.
-- **task contract**: a class in `teia.task` typing what crosses the two graph boundaries ([base/task](base/task.md)).
-- **zoo**: `teia.node`, `teia.callbacks` and everything under `src/teia/conf/` (node leaves, modules, task presets, default evalmodules).
+- **task contract**: a class in `teia.task` typing what crosses the two graph boundaries ([base/task](base/task.md)), shipped with its preset, evalmodule and `linear_probe` ([core/task](core/task.md)).
+- **zoo**: `teia.node`, `teia.callbacks`, their reference leaves under `src/teia/conf/node/`, the format datamodules and the system groups under `src/teia/conf/`.
 - **released**: published on PyPI under a version number.
 - **breaking change**: a change after which a config, project or run snapshot that worked on the previous version raises an error.
 
 ## Map
 
-| Layer | Lives in | Grows | Once released |
-|---|---|---|---|
-| language | `teia.base`, `teia.core`, `src/teia/core/conf/` | rarely | changes only in a breaking release |
-| task contracts | `teia.task` | freely, one module per task | frozen: fields, types and route never change |
-| zoo | `teia.node`, `teia.callbacks`, `src/teia/conf/` | freely | behavior and defaults may change in any minor release |
+- Language: `teia.base`, `teia.core`, `src/teia/core/conf/`.
+- Task contracts: `teia.task`, with `conf/task/`, `conf/evalmodule/<task>/` and `conf/netmodule/<task>/linear_probe.yaml`.
+- Zoo: `teia.node`, `teia.callbacks`, `conf/node/`, `conf/datamodule/<task>/`, the system groups under `conf/`.
 
 ## Contracts
+
+### Layers
+
+| Layer | Grows | Once released |
+|---|---|---|
+| language | rarely | changes only in a breaking release |
+| task contracts, their evalmodules and `linear_probe` netmodules | freely, one per task | frozen: fields, types, route and the probe's wiring change only with the contract |
+| zoo | freely | behavior and defaults may change in any minor release |
 
 ### Version numbers
 
@@ -36,7 +42,7 @@ Versions follow `MAJOR.MINOR.PATCH`.
 |---|---|
 | A breaking change in any layer: a language change, a removed or renamed component, config option or task, a constructor argument removed or made required, a changed field in a released task contract | major |
 | An addition: a new component, config, task contract or extra | minor |
-| A change in results with no error: a new task preset or default evalmodule, a changed component default, a changed metric formula | minor |
+| A change in results with no error: a changed component or reference-leaf default, a changed format-datamodule default, a changed metric formula | minor |
 | A fix that changes no interface | patch |
 
 Before `1.0.0`, the minor digit plays the role of major and the patch digit covers everything else. The project is in beta until then, so a minor release may also change a released task contract in place, listed under **Breaking** in `CHANGELOG.md`.
@@ -51,7 +57,7 @@ A task that needs different fields, types or routes is a new contract with its o
 
 ## Extending
 
-To add a component or task, add it in the zoo or in `teia.task` and release it as a minor version. To change a default, change the preset and list it under "Results may change". To change a released task contract, add a new contract instead, except before `1.0.0` ([version numbers](#version-numbers)).
+To add a component, add it in the zoo with its reference leaf and release it as a minor version. To add a task, add its contract, preset, evalmodule, format datamodule and `linear_probe` together ([core/task](core/task.md#extending)). To change a default, change the component or its leaf and list it under "Results may change". To change a released task contract, add a new contract instead, except before `1.0.0` ([version numbers](#version-numbers)).
 
 ## Constraints
 
@@ -60,3 +66,8 @@ To add a component or task, add it in the zoo or in `teia.task` and release it a
 - A release that breaks a config, project, run snapshot or task contract MUST list each break under "Breaking" in `CHANGELOG.md`.
 - A release that can change results MUST list each such change under "Results may change" in `CHANGELOG.md`.
 - The language MUST NOT import the zoo statically ([architecture](architecture.md)).
+- A `linear_probe` netmodule MUST change only when its task contract changes.
+
+## History
+
+- [2026-10-24 machinery-first configs](logs/2026-10-24_machinery-first-configs.md): why tuned presets left the zoo and the probe is frozen with its contract.

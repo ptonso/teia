@@ -25,15 +25,15 @@ Scenario: a two-objective netmodule self-namespaces `head_det`, `act_det`, `loss
 
 ### Objective region
 
-An objective is a naming convention inside one netmodule, not a config entry. Excerpt of `conf/netmodule/vision-cls/mlp.yaml`:
+An objective is a naming convention inside one netmodule, not a config entry. Excerpt of `conf/netmodule/vision-cls/linear_probe.yaml`:
 
 ```yaml
 defaults:
-  - /node/net/head@head: linear_cls
-  - /node/net/loss@loss: cross_entropy
+  - /netmodule/_shared/linear_probe@_here_
   - /node/net/act@act: softmax
+  - /node/net/loss@loss: cross_entropy
   - _self_
-head: { in: feat.x, out: { pred.logits: [num_classes] } }
+head: { out: { pred.logits: [num_classes] } }
 act:  { in: pred.logits, out: { act.probs: null, act.label: null } }
 loss: { in: [pred.logits, batch.cls], out: { loss.cls: null }, weight: 1.0 }
 capture: { cls.scores: act.probs, cls.label: post.act.label }
@@ -43,7 +43,7 @@ Multi-objective netmodules self-namespace their aliases (`head_cls`, `act_cls`, 
 
 ### Composition
 
-A netmodule preset assembles an input bundle plus objectives into one flat graph, and the engine builds and dry-runs it like any netmodule graph ([overview](overview.md)). No separate `input` or `objective` fragment groups ship. The whole graph is one preset.
+A netmodule preset assembles an input bundle plus objectives into one flat graph, and the engine builds and dry-runs it like any netmodule graph ([overview](overview.md)). No separate `input` or `objective` fragment groups ship. The one shared netmodule fragment is the probe body `netmodule/_shared/linear_probe`, an input bundle that each task's probe completes with its objective ([../task](../task.md#linear-probe)).
 
 ### Objectives and modality
 
@@ -69,3 +69,6 @@ A decoder is objective-side. The input bundle ends at `feat.*`, and a decoder is
 - The input bundle MUST end at `feat.*`, and terminal outputs (including reconstruction and generation) belong to objectives.
 - The fused assignment loss node MUST NOT be decomposed into a shared `assign.*` producer.
 
+## History
+
+- [2026-10-24 machinery-first configs](../../logs/2026-10-24_machinery-first-configs.md): the probe body as the one shared netmodule fragment.

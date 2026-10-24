@@ -30,7 +30,7 @@ Terms shared across the whole spec set. Subsystem specs link here instead of red
 - `teia.base`: the torch-only contract floor ([base/structure](base/structure.md), [base/batch](base/batch.md), [base/task](base/task.md), the node ABCs).
 - `teia.core`: the engine, CLI, Hydra composition, runtime, the three graph executors, capture, export and infer ([core/overview](core/overview.md)).
 - `teia.node.data`: data components by node kind ([data/layout](data/layout.md)). `teia.node.net`: compute components by `fan × assumes` ([net/layout](net/layout.md)). `teia.node.eval`: evaluation components by ABC kind × pairing ([eval/layout](eval/layout.md)). `teia.task`: task contracts. `teia.callbacks`: training callbacks.
-- `src/teia/conf/`: operational config, node leaves under `conf/node/{data,net,eval}`, modules, task presets and the demo recipes. `demo/`: two runnable scripts.
+- `src/teia/conf/`: operational config, reference leaves under `conf/node/{data,net,eval}`, and per task its preset, evalmodule, format datamodule and `linear_probe` netmodule. `demo/`: one runnable script per task, never installed ([core/task](core/task.md#demo-and-fixtures)).
 - No distribution owns `teia/__init__.py`, since `teia` and `teia.node` are namespace levels. Plugins add components and configs under their own package and attach their configs through auto-discovered Hydra search-path plugins ([plugin](plugin.md)).
 
 ## Contracts
@@ -68,7 +68,7 @@ Every run is described by four independent axes, each with one home.
 
 ### Config ownership
 
-`teia` owns operational config in-package (`config.yaml` with the primary slot list, core runtime groups, trainer and callback defaults, infer and export adapters), `conf/node/eval/*` with the per-task `evalmodule/<task>/default` presets, the `conf/node/{data,net}` leaves of its components, and the shipped modules and presets. Its Hydra search-path plugin auto-registers the config, so `teia train task=<name>` composes after install. Module groups and `task` are primary-level `optional <name>: null` selections, and a task preset is written `# @package _global_` ([core/config](core/config.md)).
+`teia` owns operational config in-package (`config.yaml` with the primary slot list, core runtime groups, trainer and callback defaults, infer and export adapters), the reference leaves of its components under `conf/node/{data,net,eval}`, and for each task it ships the preset, `evalmodule/<task>/default`, one format datamodule and `netmodule/<task>/linear_probe` ([core/task](core/task.md)). Every other module and every tuned recipe belongs to a project ([ecosystem](ecosystem.md#where-code-lives)). Its Hydra search-path plugin auto-registers the config, so `teia train task=<name>` composes after install. Module groups and `task` are primary-level `optional <name>: null` selections, and a task preset is written `# @package _global_` ([core/config](core/config.md)).
 
 ### Dependency direction
 
@@ -82,3 +82,7 @@ Every run is described by four independent axes, each with one home.
 - Structure is the single data ≡ compute axis, and a `batch.*` field is typed by structure, not modality.
 - Fields MUST be content-named (`batch.image`, `batch.text`, `batch.numerical`, `feat.pooled`), never positional (`batch.x`).
 - The Python taxonomy encodes hard constraints only. Purpose (`stem`, `encoder`, `head`) and application (`det`, `survival`) are conf concerns and MUST NOT become Python folders or engine-visible roles.
+
+## History
+
+- [2026-10-24 machinery-first configs](logs/2026-10-24_machinery-first-configs.md): why config ownership shrank to reference leaves, evalmodules, format datamodules and probes.

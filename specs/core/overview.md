@@ -16,7 +16,7 @@ Scenario: `teia train task=tabular-cls data_root=/data/adult` trains, captures t
 
 - **core**: `teia.core`, the application-agnostic runtime (config, Lightning execution, capture, eval-graph execution, inference, export) plus the two executors `TeiaDataModule` and `TeiaNetModule`.
 - **component library**: `teia.node.data.*` (data components by kind), `teia.node.net.*` (compute components by fan × assumes) and `teia.node.eval.*` (evaluation components by kind × pairing). There are no modality packs. `vision` and `tabular` survive only as task and dataset names.
-- **task**: a contract plus one default per module group (`task=vision-det`), described in [task](task.md).
+- **task**: a contract plus its format datamodule, `linear_probe` netmodule and evalmodule (`task=vision-det`), described in [task](task.md).
 - **run**: one stage execution rooted at a `run_dir` with an immutable config snapshot.
 
 ## Map
@@ -62,3 +62,6 @@ Custom `LightningDataModule` and `LightningModule` targets, custom config groups
 - Core MUST be Lightning-only, with no model-owned stage runners.
 - `teia export` is ONNX-first. `teia infer` always writes a canonical prediction artifact and may also write io-specific outputs.
 
+## History
+
+- [2026-10-24 machinery-first configs](../logs/2026-10-24_machinery-first-configs.md): a task's defaults are a format datamodule, a linear probe and an evalmodule.

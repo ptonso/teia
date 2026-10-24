@@ -20,7 +20,7 @@ Walk-through:
 3. CLI selections and values apply last.
 4. The result is one flat `datamodule` graph, one flat `netmodule` graph and one flat `evalmodule` graph, plus `task._target_` and the system groups.
 
-Scenario: `teia train task=vision-cls netmodule=vision-cls/wide_mlp node/net/encoder@netmodule.encoder=mlp_image data_root=/ds/pets netmodule.lr=1e-3` selects a task, swaps its architecture, swaps one node inside it, and overrides a value.
+Scenario: `teia train task=vision-cls netmodule=vision-cls/resnet18_pets node/net/head@netmodule.head=linear data_root=/ds/pets netmodule.lr=1e-3` selects a task, replaces its linear probe with a project netmodule, swaps one node inside it, and overrides a value.
 
 ## Language
 
@@ -35,8 +35,8 @@ Scenario: `teia train task=vision-cls netmodule=vision-cls/wide_mlp node/net/enc
 ## Map
 
 - The root `config.yaml` and the system defaults: `teia/core/conf/` (`trainer`, `runtime`, `callbacks`, `loggers`, `train`, `test`, `infer`, `export`).
-- Node leaves: `conf/node/data/*` and `conf/node/net/*` in the component library, and `conf/node/eval/*` in `teia`.
-- Modules and tasks: `conf/{datamodule,netmodule,evalmodule}/<task>/*` and `conf/task/*` in the component library. `teia` ships task-less examples and the shared eval fragment `evalmodule/_shared/run.yaml`.
+- Node leaves: `conf/node/{data,net,eval}/*`, one reference leaf per component in the package that owns it.
+- Modules and tasks: `conf/{datamodule,netmodule,evalmodule}/<task>/*` and `conf/task/*`. For each task it owns, `teia` ships the preset, one format datamodule, the evalmodule and `netmodule/<task>/linear_probe`; projects add their own modules ([task](task.md)). Shared fragments live in `conf/{netmodule,evalmodule}/_shared/`.
 - Composition and validation code: `teia.core.config`, `teia.core.runtime.composer`, `teia.core.runtime.validate`.
 
 ## Contracts
@@ -96,10 +96,10 @@ The purpose folder is an interface label. The `_target_` names the Python compon
 
 ### Modules
 
-A module is packaged at its group (`datamodule`, `netmodule`, `evalmodule`). It mounts leaves under aliases and wires them:
+A module is packaged at its group (`datamodule`, `netmodule`, `evalmodule`). It mounts leaves under aliases and wires them. A project netmodule, for example:
 
 ```yaml
-# conf/netmodule/vision-cls/mlp.yaml
+# <project>/conf/netmodule/vision-cls/mlp_pets.yaml
 defaults:
   - /node/net/encoder@encoder: mlp_image
   - /node/net/head@head: linear
@@ -128,8 +128,8 @@ A preference that the net owns but the data graph consumes, such as input resolu
 
 ```text
 teia train task=vision-cls                                                   # select a task preset
-teia train task=vision-cls netmodule=vision-cls/wide_mlp                 # swap a module
-teia train task=vision-cls node/net/encoder@netmodule.encoder=mlp_tabular # swap one mounted node
+teia train task=vision-cls netmodule=vision-cls/mlp_pets                  # swap a module
+teia train task=vision-cls netmodule=vision-cls/mlp_pets node/net/encoder@netmodule.encoder=mlp_tabular # swap one mounted node
 teia train task=vision-cls optim@netmodule=adam_1e3                # swap a @_here_ mount
 teia train task=vision-cls data_root=/ds/pets netmodule.lr=1e-3             # value overrides
 ```
@@ -181,4 +181,5 @@ It never duplicates the package tree. `teia train` snapshots only the project ov
 ## History
 
 - [2026-10-17 replicated runs and a cross-run reducer](../logs/2026-10-17_replicated-runs-and-reducer.md): `runtime.n_runs` as the one replication entry.
+- [2026-10-24 machinery-first configs](../logs/2026-10-24_machinery-first-configs.md): which modules and leaves `teia` ships.
 - [2026-10-17 the sweep command](../logs/2026-10-17_sweep-command.md): `sweep` keys.
