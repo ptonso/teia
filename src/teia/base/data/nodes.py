@@ -1,6 +1,6 @@
 """IO-node contracts — the data-plane analog of ``teia.base.net.TeiaNode``.
 
-Six atomic node kinds (``Reader``/``Transform``/``Join``/``Reshape``/``Collate``/``Writer``) wired by
+Seven atomic node kinds (``Reader``/``Engine``/``Transform``/``Join``/``Reshape``/``Collate``/``Writer``) wired by
 ``in_key``/``out_key`` over the io workspace (``stream.*`` → ``item.*`` → ``batch.*``). ``teia.base`` owns
 only the ABCs, the phase/stage vocabulary, and the key typing; concrete components live in
 ``teia.node.data.*``. See teia:base/data/nodes.md.
@@ -12,11 +12,13 @@ from pathlib import Path
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator, Mapping
-from typing import Any, Callable, ClassVar, Literal, get_args
+from dataclasses import dataclass
+from math import prod
+from typing import Any, Callable, ClassVar, Literal, NamedTuple, get_args
 
 Phase = Literal["source", "preprocess", "augment", "target", "collate", "writer"]
 Stage = Literal["plan", "item", "stream", "batch"]
-Kind = Literal["read", "transform", "join", "reshape", "collate", "write"]
+Kind = Literal["read", "engine", "transform", "join", "reshape", "collate", "write"]
 
 PHASES: frozenset[str] = frozenset(get_args(Phase))
 STAGES: frozenset[str] = frozenset(get_args(Stage))
@@ -26,6 +28,7 @@ STAGE_RANK: dict[Stage, int] = {"plan": 0, "item": 1, "stream": 1, "batch": 2}
 
 _DEFAULT_PHASE: dict[Kind, Phase] = {
     "read": "source",
+    "engine": "source",
     "transform": "preprocess",
     "join": "target",
     "reshape": "preprocess",
@@ -34,6 +37,7 @@ _DEFAULT_PHASE: dict[Kind, Phase] = {
 }
 _DEFAULT_STAGE: dict[Kind, Stage] = {
     "read": "plan",
+    "engine": "stream",
     "transform": "item",
     "join": "plan",
     "reshape": "plan",
@@ -113,6 +117,70 @@ class Reader(IoNode):
     @abstractmethod
     def iter_split(self, split: str) -> Iterable[tuple[Any, Any]]:
         """Yield ``(key, raw)`` for every sample in ``split``."""
+
+
+@dataclass(frozen=True)
+class EngineSpec:
+    """What an engine emits and accepts. ``outputs`` holds one ``(shape, dtype name)`` per ``out`` key in
+    order, shapes without the environment axis. A discrete action sets ``num_actions`` and leaves the bounds ``None``."""
+
+    num_envs: int
+    outputs: tuple[tuple[tuple[int, ...], str], ...]
+    action_shape: tuple[int, ...]
+    action_dtype: str
+    action_low: float | None = None
+    action_high: float | None = None
+    num_actions: int | None = None
+
+
+class EngineStep(NamedTuple):
+    """One transition for all environments, in same-step form. ``next`` and ``end`` hold one tensor per
+    engine ``out`` key; ``end`` equals ``next`` except where ``boundary`` is true, where it holds the
+    pre-reset final values."""
+
+    next: tuple[Any, ...]
+    end: tuple[Any, ...]
+    boundary: Any
+
+
+class Engine(IoNode):
+    """Output-only live source of a stream-mode datamodule. It owns one simulator for the process, takes no
+    ``in`` and is driven by the runner. Its ``out`` names its outputs positionally; the docstring states the order.
+    See teia:base/data/nodes.md."""
+
+    @abstractmethod
+    def open(self, seed: int) -> None:
+        """Build the simulator once per process (lazy, idempotent)."""
+
+    @abstractmethod
+    def close(self) -> None: ...
+
+    @abstractmethod
+    def spec(self) -> EngineSpec: ...
+
+    @abstractmethod
+    def reset(self) -> tuple[Any, ...]:
+        """One tensor per ``out`` key, leading axis ``num_envs``."""
+
+    @abstractmethod
+    def step(self, action: Any) -> EngineStep: ...
+
+    def render(self) -> Any | None:
+        return None
+
+    def runtime_dims(self) -> dict[str, Any]:
+        spec = self.spec()
+        dims: dict[str, Any] = {}
+        for key, (shape, _) in zip(self.out_key, spec.outputs):
+            name = key.split(".", 1)[1]
+            dims[f"{name}_shape"] = shape
+            if len(shape) == 1:
+                dims[f"{name}_dim"] = shape[0]
+        if spec.num_actions is not None:
+            dims["num_actions"] = spec.num_actions
+        else:
+            dims["action_dim"] = prod(spec.action_shape)
+        return dims
 
 
 class Transform(IoNode):

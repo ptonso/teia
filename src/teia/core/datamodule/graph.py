@@ -20,6 +20,7 @@ from teia.base.data import (
     STAGE_RANK,
     STAGES,
     Collate,
+    Engine,
     Join,
     Kind,
     Phase,
@@ -38,6 +39,7 @@ _KIND_BY_BASE: list[tuple[type, Kind]] = [
     (Collate, "collate"),
     (Writer, "write"),
     (Reader, "read"),
+    (Engine, "engine"),
     (Join, "join"),
     (Reshape, "reshape"),
     (Transform, "transform"),
@@ -74,6 +76,8 @@ class IoNodeRecord:
     phase: Phase
     stage: Stage
     field: str | None = None
+    in_roles: dict[str, str] | None = None
+    """Set when ``in`` is a ``{role: key}`` mapping: the node binds each key by role name, and ``in_key`` lists the keys."""
 
 
 def _normalize_keys(raw: Any, *, name: str, which: str) -> list[str]:
@@ -115,7 +119,7 @@ def _infer_kind(cls: type, *, name: str) -> Kind:
             return kind
     raise ValueError(
         f"data node '{name}': {cls.__module__}.{cls.__qualname__} is not a "
-        "Reader/Transform/Join/Reshape/Collate/Writer subclass."
+        "Reader/Engine/Transform/Join/Reshape/Collate/Writer subclass."
     )
 
 
@@ -143,6 +147,11 @@ def parse_node(name: str, entry: Mapping[str, Any]) -> IoNodeRecord:
         raise ValueError(f"data node '{name}': unknown stage {stage!r}; expected one of {sorted(STAGES)}.")
 
     out_key = _normalize_keys(entry.get("out"), name=name, which="out")
+    raw_in = entry.get("in")
+    in_roles = {str(role): str(key) for role, key in raw_in.items()} if isinstance(raw_in, Mapping) else None
+    in_key = list(in_roles.values()) if in_roles is not None else _normalize_keys(raw_in, name=name, which="in")
+    if kind == "engine" and in_key:
+        raise ValueError(f"data node '{name}': an engine is output-only and takes no `in`.")
     field: str | None = None
     if kind == "collate":
         if len(out_key) != 1 or not out_key[0].startswith("batch."):
@@ -153,11 +162,12 @@ def parse_node(name: str, entry: Mapping[str, Any]) -> IoNodeRecord:
         name=str(name).replace("/", "_").replace("-", "_"),
         kind=kind,
         component=component,
-        in_key=_normalize_keys(entry.get("in"), name=name, which="in"),
+        in_key=in_key,
         out_key=out_key,
         phase=phase,
         stage=stage,
         field=field,
+        in_roles=in_roles,
     )
 
 
