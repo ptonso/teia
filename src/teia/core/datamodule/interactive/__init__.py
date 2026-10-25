@@ -1,9 +1,8 @@
-"""Interactive-regime driver — the core loop variant for online (collect↔train) data generation.
+"""Stream-mode driver — the core loop for engine-sourced (collect↔train) data generation.
 
-Selected by ``TeiaDataModule`` when the data graph's reader is a live env source (``interactive``).
-The regime couples collection to training through a ``Runner`` (sync/async) + a ``PolicyAdapter``
-bound to the live policy weights; the env source (``teia.node.data.reader.env``) owns the simulator and
-the buffer/collater pillars. See teia:core/datamodule.md (interactive regime).
+Selected by ``TeiaDataModule`` when the data graph carries an ``Engine`` node. A ``Runner`` (sync/async) couples
+collection to training through a ``PolicyAdapter`` bound to the live netmodule; the engine owns the simulator and the
+buffer (a ``StreamReshape`` node) owns trajectory math. See teia:core/datamodule.md#stream-mode.
 """
 
 from __future__ import annotations

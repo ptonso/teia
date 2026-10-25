@@ -25,7 +25,14 @@ import torch
 
 from teia.base.fields import FIELD_VOCAB, compose_batch, register_field
 from teia.base.data import Collate, Join, Reader, Transform
-from teia.core.datamodule.graph import IoNodeRecord, batch_field_names, build_graph, discover_node_entries, join_input_name
+from teia.core.datamodule.graph import (
+    IoNodeRecord,
+    batch_field_names,
+    build_graph,
+    discover_node_entries,
+    join_input_name,
+    unproduced_keys,
+)
 from teia.core.instantiate import instantiate
 
 _SPLITS = ("train", "val", "test")
@@ -42,6 +49,12 @@ def _assign(workspace: dict[str, Any], out_key: list[str], result: Any) -> None:
         return
     for key, value in zip(out_key, result):
         workspace[key] = value
+
+
+def _is_engine_entry(entry: Any) -> bool:
+    from teia.core.datamodule.graph import parse_node
+
+    return parse_node("_", entry).kind == "engine" if isinstance(entry, dict) and "_target_" in entry else False
 
 
 def _as_tuple(value: Any) -> tuple:
@@ -120,20 +133,28 @@ class TeiaDataModule(LightningDataModule):
         self._planned = False
 
         shared = {"project_dir": project_dir, "data_root": data_root, "image_size": image_size}
-        self._records: list[IoNodeRecord] = build_graph(discover_node_entries(nodes))
-        self._live = any(rec.stage == "stream" for rec in self._records)
+        entries = discover_node_entries(nodes)
+        self._records: list[IoNodeRecord] = build_graph(entries, external=any(_is_engine_entry(e) for _, e in entries))
+        engines = [r for r in self._records if r.kind == "engine"]
+        if len(engines) > 1:
+            raise ValueError(f"a stream-mode graph declares one engine; got {[r.name for r in engines]}.")
+        self._engine_rec: IoNodeRecord | None = engines[0] if engines else None
+        self._live = self._engine_rec is not None
         self._nodes: dict[str, Any] = {}
         for rec in self._records:
             node = instantiate(rec.component)
             node.in_key, node.out_key = rec.in_key, rec.out_key
             node.phase, node.stage = rec.phase, rec.stage
+            node.in_roles = rec.in_roles
             for attr in _SHARED_NODE_ATTRS:
                 if hasattr(node, attr) and getattr(node, attr, None) is None:
                     setattr(node, attr, shared[attr])
             self._nodes[rec.name] = node
 
         self._readers = [r for r in self._records if r.kind == "read"]
-        if not self._readers:
+        if self._live and self._readers:
+            raise ValueError("a stream-mode graph has an engine as its source and declares no reader.")
+        if not self._live and not self._readers:
             raise ValueError("data graph declares no reader; at least one `read` node is required.")
         joins = [r for r in self._records if r.kind == "join"]
         if len(joins) > 1:
@@ -183,8 +204,11 @@ class TeiaDataModule(LightningDataModule):
 
         self._regime: Any = None
         self._runner: Any = None
+        self._contract: Any = None
+        self._module: Any = None
+        self._engine_epoch = 0
         if self._live:
-            from teia.core.datamodule.interactive import InteractiveRegime, Runner, SyncRunner
+            from teia.core.datamodule.interactive import InteractiveRegime, Runner
 
             if num_workers is not _UNSET and _resolve_workers(num_workers, cap=16) != 0:
                 raise ValueError(f"a live (stream) graph runs num_workers=0 (inline collection); got {num_workers!r}.")
@@ -200,7 +224,7 @@ class TeiaDataModule(LightningDataModule):
             elif runner is not None:
                 self._runner = instantiate(runner)
             else:
-                self._runner = SyncRunner()
+                raise ValueError("a stream-mode datamodule declares `runner:` (SyncRunner or AsyncRunner with `total_env_steps`).")
         else:
             self.batch_size = 8 if batch_size is _UNSET else batch_size
             self.num_workers = _resolve_workers(4 if num_workers is _UNSET else num_workers, cap=16)
@@ -213,60 +237,88 @@ class TeiaDataModule(LightningDataModule):
 
     # -- context (ctx.*) workspace -------------------------------------------------
     def bind_context(self, **live: Any) -> None:
-        """Bind live, externally-produced values a ``stream``-stage node's ``ctx.<name>`` in_key
-        resolves to (e.g. ``bind_context(policy=module)``). Test/explicit override; Lightning-native
-        resolution (``resolve_context``) covers the common case."""
+        """Bind live, externally-produced values a node's ``ctx.<name>`` in_key resolves to."""
         self._context.update(live)
 
     def resolve_context(self, name: str) -> Any:
         if name in self._context:
             return self._context[name]
-        if name == "policy":
-            trainer = getattr(self, "trainer", None)
-            if trainer is not None and getattr(trainer, "lightning_module", None) is not None:
-                return trainer.lightning_module
-        raise RuntimeError(f"No ctx.{name} bound: call bind_context({name}=...) or run under Trainer.fit.")
+        raise RuntimeError(f"No ctx.{name} bound: call bind_context({name}=...).")
+
+    # -- stream mode: contract, module, engine -----------------------------------------
+    def bind_contract(self, contract: Any) -> None:
+        """The task contract whose ``feedback`` map names the atoms the runner writes back into rows. The keys no node
+        produces must be ones the runner supplies: a fed-back field, an ``item.next_<K>`` successor or the episode id."""
+        self._contract = contract
+        if self._live and contract is not None:
+            produced = {key for rec in self._records for key in rec.out_key}
+            supplied = {f"item.{field}" for field in contract.feedback.values()}
+            supplied |= {key.replace("item.", "item.next_", 1) for key in produced}
+            supplied |= {self._runner.episode_id}
+            missing = sorted(unproduced_keys(self._records) - supplied)
+            if missing:
+                raise ValueError(f"data graph reads {missing}, which no node produces and the runner does not supply.")
+
+    @property
+    def contract(self) -> Any:
+        if self._contract is None or not self._contract.feedback:
+            raise ValueError("a stream-mode datamodule needs a bound task contract with a `feedback` map.")
+        return self._contract
+
+    def bind_module(self, module: Any) -> None:
+        """The netmodule the runner acts through (default: the Trainer's module)."""
+        self._module = module
+
+    def _policy_module(self) -> Any:
+        if self._module is not None:
+            return self._module
+        trainer = getattr(self, "trainer", None)
+        if trainer is not None and getattr(trainer, "lightning_module", None) is not None:
+            return trainer.lightning_module
+        raise RuntimeError("no netmodule bound: call bind_module(module) or run under Trainer.fit.")
+
+    @property
+    def _engine_node(self) -> Any:
+        return self._nodes[self._engine_rec.name]
 
     # -- stream (live) graph accessors ---------------------------------------------
-    def _stream_reader_node(self) -> Any:
-        for rec in self._readers:
-            if rec.stage == "stream":
-                return self._nodes[rec.name]
-        raise RuntimeError("live graph has no stage='stream' reader.")
-
     def _stream_reshape_node(self) -> Any | None:
         for rec in self._records:
             if rec.stage == "stream" and rec.kind == "reshape":
                 return self._nodes[rec.name]
         return None
 
-    def _bind_stream_context(self) -> dict[str, Any]:
-        names = {key[len("ctx.") :] for rec in self._records for key in rec.in_key if key.startswith("ctx.")}
-        return {name: self.resolve_context(name) for name in names}
-
-    def _runner_context(self, *, training: bool) -> Any:
-        from teia.core.datamodule.interactive.regime import _ensure_episode_log, _policy_device
-        from teia.core.datamodule.interactive.runner_base import RunnerContext
-
-        reader = self._stream_reader_node()
-        module = self.resolve_context("policy")
-        return RunnerContext(
-            dm=self,
-            stream_reader=reader,
-            stream_reshape=self._stream_reshape_node(),
-            ctx=self._bind_stream_context(),
-            total_env_steps=reader.total_env_steps,
-            num_envs=reader.num_envs,
-            seed=reader.seed,
-            device=_policy_device(module),
-            generator=reader.sampling_generator(),
-            training=training,
-            episode_log=_ensure_episode_log(module) if training else None,
-        )
-
     @property
     def eval_episodes(self) -> int:
-        return int(self._stream_reader_node().eval_episodes)
+        return self._runner.eval_episodes
+
+    def _set_training(self, training: bool) -> dict[str, bool]:
+        """Set ``training`` on every item node that has it; returns the previous flags."""
+        previous = {}
+        for rec in self._item_records:
+            node = self._nodes[rec.name]
+            if hasattr(node, "training"):
+                previous[rec.name] = node.training
+                node.training = training
+        return previous
+
+    def _restore_training(self, previous: dict[str, bool]) -> None:
+        for name, flag in previous.items():
+            self._nodes[name].training = flag
+
+    def _stream_pass(self, seed: dict[str, Any], phases: frozenset[str]) -> dict[str, Any]:
+        """The toposorted item subgraph filtered to ``phases``; a node runs when all its inputs are present."""
+        workspace: dict[str, Any] = dict(seed)
+        for rec in self._item_records:
+            if rec.phase in phases and all(k in workspace for k in rec.in_key):
+                _assign(workspace, rec.out_key, self._call(rec, workspace))
+        return workspace
+
+    def _collate_env_axis(self, workspace: dict[str, Any]) -> Any:
+        """Collate one stream step: its tensors carry the environment axis, which becomes the batch axis."""
+        columns = {k: v.unbind(0) for k, v in workspace.items() if isinstance(v, torch.Tensor) and v.ndim}
+        count = len(next(iter(columns.values())))
+        return self._collate_fn([{k: column[i] for k, column in columns.items()} for i in range(count)])
 
     # -- plan stage ---------------------------------------------------------------
     def _build_streams(self, split: str) -> dict[str, dict[Any, Any]]:
@@ -318,7 +370,9 @@ class TeiaDataModule(LightningDataModule):
     def _plan(self) -> None:
         if self._planned:
             return
-        if not self._live:
+        if self._live:
+            self._engine_node.open(self._engine_node.seed)
+        else:
             for split in _SPLITS:
                 self._seeds_for(split)
             # Stateful transforms fit from their in_key values across the fit splits. The input may be a
@@ -349,13 +403,15 @@ class TeiaDataModule(LightningDataModule):
         return dict(self._runtime_dims)
 
     def setup(self, stage: str | None = None) -> None:
-        if self._live:
-            if stage in (None, "fit"):
-                self._stream_reader_node().setup_stream()
-            return
         self._plan()
 
     # -- item stage ---------------------------------------------------------------
+    def _call(self, rec: IoNodeRecord, workspace: dict[str, Any]) -> Any:
+        node = self._nodes[rec.name]
+        if rec.in_roles is not None:
+            return node(**{role: workspace[key] for role, key in rec.in_roles.items()})
+        return node(*[workspace[k] for k in rec.in_key])
+
     def _item_workspace(self, seed: dict[str, Any], *, augment: bool = True) -> dict[str, Any]:
         """Run the toposorted item subgraph. ``augment=False`` skips the stochastic ``augment``-phase
         nodes; since those are in-place rewrites, their downstream consumers (raster/collate) then read
@@ -364,8 +420,7 @@ class TeiaDataModule(LightningDataModule):
         for rec in self._item_records:
             if rec.phase == "augment" and not augment:
                 continue
-            node = self._nodes[rec.name]
-            _assign(workspace, rec.out_key, node(*[workspace[k] for k in rec.in_key]))
+            _assign(workspace, rec.out_key, self._call(rec, workspace))
         return workspace
 
     def _core_workspace(self, seed: dict[str, Any]) -> dict[str, Any]:
@@ -395,9 +450,8 @@ class TeiaDataModule(LightningDataModule):
                 break
             if rec.phase == "augment":
                 continue
-            node = self._nodes[rec.name]
             if all(k in workspace for k in rec.in_key):
-                _assign(workspace, rec.out_key, node(*[workspace[k] for k in rec.in_key]))
+                _assign(workspace, rec.out_key, self._call(rec, workspace))
         return workspace
 
     # -- batch stage --------------------------------------------------------------
@@ -448,18 +502,13 @@ class TeiaDataModule(LightningDataModule):
     def train_dataloader(self) -> DataLoader:
         self._plan()
         if self._live:
-            return self._regime.train_iterable(self.resolve_context("policy"))
+            return self._regime.train_iterable(self._policy_module())
         self._bind_siblings("train")
         return self._dataloader("train", shuffle=True, num_workers=self.num_workers, drop_last=self.drop_last)
 
     def _eval_iterable(self) -> Any:
         self.eval_capture_only = True
-        return self._regime.eval_iterable(
-            self.resolve_context("policy"),
-            episodes=self.eval_episodes,
-            deterministic=True,
-            seed=self._stream_reader_node().seed,
-        )
+        return self._regime.eval_iterable(self._policy_module())
 
     def val_dataloader(self) -> Any:
         self._plan()
@@ -503,15 +552,14 @@ class TeiaDataModule(LightningDataModule):
 
     def batch_meta(self) -> dict[str, tuple[int, ...]]:
         self._plan()
-        if self._live:
-            fields = set(self._field_names.values())
-            return self._regime.batch_meta(self._runtime_dims, fields)
         sample = self._sample_batch()
         meta: dict[str, tuple[int, ...]] = {}
         for field in (*self._field_names.values(), *self._present_fields.values()):
             value = getattr(sample, field)
             if hasattr(value, "shape"):  # tensor fields only; list fields (path/ori_shape/...) are skipped
                 meta[field] = tuple(value.shape[1:])
+            elif value is None and self._live:  # a buffer output no node produces before training: per-sample scalar
+                meta[field] = ()
         return meta
 
     @property
@@ -545,7 +593,7 @@ class TeiaDataModule(LightningDataModule):
 
     def _sample_batch(self) -> Any:
         if self._live:
-            return self._regime.sample_batch()
+            return self._regime.probe_batch()
         for split in _SPLITS:
             seeds = self._seeds_for(split)
             if seeds:

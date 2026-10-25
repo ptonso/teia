@@ -261,7 +261,18 @@ def batch_field_names(records: list[IoNodeRecord], *, prefix: bool) -> dict[str,
     return names
 
 
-def _resolve_deps(records: list[IoNodeRecord]) -> dict[str, set[str]]:
+def unproduced_keys(records: list[IoNodeRecord]) -> set[str]:
+    """Item keys some node reads and no node writes: in a stream-mode graph these are the keys the runner supplies."""
+    produced = {key for rec in records for key in rec.out_key}
+    return {
+        key
+        for rec in records
+        for key in rec.in_key
+        if key not in produced and not key.startswith(("ctx.", "capture.", "meta."))
+    }
+
+
+def _resolve_deps(records: list[IoNodeRecord], *, external: bool = False) -> dict[str, set[str]]:
     """Per-node dependency sets, built from ``producer_map``.
 
     A ``ctx.*`` key is exempt from producer resolution — it is bound externally via
@@ -275,6 +286,8 @@ def _resolve_deps(records: list[IoNodeRecord]) -> dict[str, set[str]]:
             if key.startswith("ctx.") or (rec.kind == "write" and key.startswith(("capture.", "meta."))):
                 continue
             if key not in producers.producers_by_key:
+                if external:
+                    continue
                 raise ValueError(f"data node '{rec.name}': in_key '{key}' is not produced by any node's out_key.")
             deps[rec.name].add(producers.producer_of(rec.name, key))
     return deps
@@ -372,10 +385,12 @@ def _validate_contracts(records: list[IoNodeRecord]) -> None:
             )
 
 
-def build_graph(node_entries: list[tuple[str, Mapping[str, Any]]]) -> list[IoNodeRecord]:
-    """Parse → toposort (dup/missing/cycle) → validate (phase-monotonicity, collate seam, data contracts)."""
+def build_graph(node_entries: list[tuple[str, Mapping[str, Any]]], *, external: bool = False) -> list[IoNodeRecord]:
+    """Parse → toposort (dup/missing/cycle) → validate (phase-monotonicity, collate seam, data contracts).
+
+    ``external`` (stream mode) tolerates keys no node produces; the datamodule checks them once the contract is bound."""
     records = [parse_node(name, entry) for name, entry in node_entries]
-    deps = _resolve_deps(records)
+    deps = _resolve_deps(records, external=external)
     ordered = _toposort(records, deps)
     _validate(ordered, deps)
     _validate_contracts(ordered)

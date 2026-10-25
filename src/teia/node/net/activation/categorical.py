@@ -45,7 +45,7 @@ class CategoricalActivation(BaseActivation):
         else:
             probs = dist.probs.detach().to("cpu")
             action = torch.multinomial(probs, 1, generator=generator).squeeze(-1).to(policy.device)
-        return ActionSample(action=action, env_action=action, log_prob=dist.log_prob(action), entropy=dist.entropy())
+        return ActionSample(action=action, log_prob=dist.log_prob(action), entropy=dist.entropy())
 
 
 __all__ = ["CategoricalActivation"]

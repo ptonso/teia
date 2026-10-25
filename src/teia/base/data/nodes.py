@@ -69,6 +69,8 @@ class IoNode(ABC):
     out_key: list[str]
     phase: Phase
     stage: Stage
+    in_roles: dict[str, str] | None = None
+    """``{role: key}`` when the envelope's ``in`` is a mapping: the node receives each key by role name."""
 
     #: Build-time data contracts the executor validates before any IO (see core/datamodule graph
     #: ``_validate_contracts``). A node declares what its inputs must satisfy so a mis-wired graph
@@ -121,11 +123,13 @@ class Reader(IoNode):
 
 @dataclass(frozen=True)
 class EngineSpec:
-    """What an engine emits and accepts. ``outputs`` holds one ``(shape, dtype name)`` per ``out`` key in
-    order, shapes without the environment axis. A discrete action sets ``num_actions`` and leaves the bounds ``None``."""
+    """What an engine emits and accepts. ``outputs`` holds one ``(shape, dtype name, role)`` per ``out`` key in
+    order, shapes without the environment axis. ``role`` is ``state`` (describes the world at a time; the policy
+    acts on it and its successor is the next state) or ``outcome`` (describes the transition just taken). A discrete
+    action sets ``num_actions`` and leaves the bounds ``None``."""
 
     num_envs: int
-    outputs: tuple[tuple[tuple[int, ...], str], ...]
+    outputs: tuple[tuple[tuple[int, ...], str, str], ...]
     action_shape: tuple[int, ...]
     action_dtype: str
     action_low: float | None = None
@@ -171,7 +175,7 @@ class Engine(IoNode):
     def runtime_dims(self) -> dict[str, Any]:
         spec = self.spec()
         dims: dict[str, Any] = {}
-        for key, (shape, _) in zip(self.out_key, spec.outputs):
+        for key, (shape, _, _) in zip(self.out_key, spec.outputs):
             name = key.split(".", 1)[1]
             dims[f"{name}_shape"] = shape
             if len(shape) == 1:
@@ -256,13 +260,12 @@ class StreamReshape(Reshape):
     """
 
     def configure(self, **kwargs: Any) -> None:
-        """Bind run-time sizing + the live collater/generator once per fit. Each concrete buffer reads
-        the subset of kwargs it needs (rollout: rollout_steps/num_envs/minibatch_size/update_epochs;
-        replay: capacity/warmup_steps/train_frequency/...) and ignores the rest via ``**_``."""
+        """Bind run-time sizing + the generator once per fit. Each concrete buffer reads the subset of kwargs
+        it needs (``num_envs``, ``generator``) and ignores the rest via ``**_``."""
 
     @abstractmethod
-    def add(self, item: Any) -> None:
-        """Append one item-workspace-shaped record."""
+    def add(self, row: Any) -> None:
+        """Append one row: ``item.*`` tensors with leading axis ``num_envs``, one environment step."""
 
     @abstractmethod
     def ready(self) -> bool:

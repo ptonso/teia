@@ -1,143 +1,102 @@
-"""``InteractiveRegime`` — couples online collection to training for a live env source.
+"""``InteractiveRegime`` — couples online collection to training for an engine-sourced datamodule.
 
-The regime is the interactive-specific orchestration layer ``TeiaDataModule`` delegates to when its data
-graph carries a ``stage="stream"`` reader (``self._live``). Unlike the pre-cutover version, it
-owns no pillar bundle of its own — every method drives the *generic* graph
-(``dm._item_workspace``/``dm._collate_fn``/``dm._stream_reader_node()``/``dm._stream_reshape_node()``)
-instead of a bespoke ``io``/``transform``/``buffer``/``collater`` tuple:
-
-* ``train_iterable(module)`` — bind a ``RunnerContext`` (graph reader/reshape/ctx) and return the
-  configured ``Runner``'s iterable (num_workers=0, live weights — one env step = one policy
-  forward inside the item subgraph's ``PolicyAction`` node).
-* ``eval_iterable(...)`` — deterministic capture-only eval episodes, driven
-  the same way (item subgraph + collate_fn), reading the env directly off the stream reader's
-  ``io`` backend for the one-off eval env (never the training ``train_env``).
-
-See teia:core/datamodule.md (interactive regime).
+``TeiaDataModule`` delegates here when its data graph carries an engine node (stream mode). The regime builds the
+``RunnerContext`` for training, runs deterministic evaluation on the already-open engine, and probes shapes for
+``batch_meta()``. See teia:core/datamodule.md#stream-mode.
 """
 
 from __future__ import annotations
 
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
 
 import torch
 from torch.utils.data import IterableDataset
 
-from teia.core.datamodule.interactive._tensor_ops import detach_cpu, to_device
-from teia.core.datamodule.interactive.sync import _obs_seed
+from teia.core.datamodule.interactive._cycle import END_PHASES, Cycle, build_row
+from teia.core.datamodule.interactive.policy import FeedforwardPolicyAdapter
+from teia.core.datamodule.interactive.runner_base import ACTION_ATOM, RunnerContext
 
 
 class InteractiveRegime:
-    """Collect↔train coupling over a live graph (``dm`` is the owning ``TeiaDataModule``)."""
-
     def __init__(self, dm: Any) -> None:
         self._dm = dm
 
-    # -- training ----------------------------------------------------------------
+    def context(self, module: Any, *, training: bool) -> RunnerContext:
+        dm = self._dm
+        engine = dm._engine_node
+        feedback = {atom: f"item.{field}" for atom, field in dm.contract.feedback.items()}
+        if ACTION_ATOM not in feedback:
+            raise ValueError(f"the task contract's `feedback` must return '{ACTION_ATOM}'.")
+        return RunnerContext(
+            dm=dm,
+            engine=engine,
+            buffer=dm._stream_reshape_node(),
+            adapter=FeedforwardPolicyAdapter(module),
+            feedback=feedback,
+            episode_id=dm._runner.episode_id,
+            return_key=dm._runner.return_key,
+            num_envs=engine.spec().num_envs,
+            device=_policy_device(module),
+            generator=torch.Generator().manual_seed(int(engine.seed)),
+            training=training,
+        )
+
     def train_iterable(self, module: Any) -> IterableDataset:
         dm = self._dm
-        dm.bind_context(policy=module)
-        ctx = dm._runner_context(training=True)
-        dm._runner.configure(ctx)
+        dm._runner.configure(self.context(module, training=True))
         return _RunnerIterable(dm._runner)
 
-    # -- evaluation --------------------------------------------------------------
-    def eval_iterable(self, module: Any, *, episodes: int, deterministic: bool, seed: int) -> IterableDataset:
-        return _StreamEvalDataset(regime=self, module=module, episodes=episodes, deterministic=deterministic, seed=seed)
+    def eval_iterable(self, module: Any) -> IterableDataset:
+        return _StreamEvalDataset(self, module)
 
-    def sample_batch(self) -> Any:
-        """One collated eval-shaped batch, for ``batch_meta()``/export shape probing. Requires
-        ``ctx.policy`` already bound (e.g. via ``bind_context``) since no trainer is attached."""
+    def play(self, module: Any, *, until: Callable[[Cycle], bool], deterministic: bool = True) -> Iterator[tuple[Cycle, dict[str, Any]]]:
+        """Run the cycle on the open engine with frozen item nodes until ``until(cycle)``, yielding each step's row.
+        The engine is reset before and after, so a training cycle in flight restarts from a fresh state."""
         dm = self._dm
-        module = dm.resolve_context("policy")
-        record = next(iter(self.eval_steps(module, episodes=1, deterministic=True, seed=0)))
-        return dm._collate_fn([_eval_seed_item(record)])
-
-    def eval_steps(
-        self, module: Any, *, episodes: int, deterministic: bool, seed: int | None
-    ) -> Iterator[dict[str, Any]]:
-        """Per-step eval records for the capture-only dataloader.
-
-        Episode ids are unique across envs. The next-step autoreset step after an episode ends
-        is not a transition and is not yielded. Item nodes run with ``training = not deterministic``
-        (``PolicyAction`` acts greedily, online-fit transforms freeze) and get their flags back after."""
-        dm = self._dm
-        dm.bind_context(policy=module)
-        reader = dm._stream_reader_node()
-        io = reader.io
-        device = _policy_device(module)
-        eval_seed = int(reader.seed if seed is None else seed)
-        env = io.build_eval_env(eval_seed, reader.num_envs)
-        ctx_values = dm._bind_stream_context()
-        nodes = [dm._nodes[rec.name] for rec in dm._item_records if hasattr(dm._nodes[rec.name], "training")]
-        prev_training = [node.training for node in nodes]
-        for node in nodes:
-            node.training = not deterministic
-
-        raw_obs = to_device(io.reset(env, seed=eval_seed), device)
-        prev_done = torch.zeros(reader.num_envs, dtype=torch.bool)
-        episode_id = torch.arange(reader.num_envs, dtype=torch.long)
-        completed = 0
+        ctx = self.context(module, training=False)
+        previous = dm._set_training(False)
+        dm._engine_epoch += 1
         try:
-            while completed < int(episodes):
-                seed_ws = _obs_seed(raw_obs, ctx_values)
-                workspace = dm._item_workspace(seed_ws, augment=False)
-                norm_obs = {k: v for k, v in workspace.items() if k.startswith("item.obs_")}
-                env_action = detach_cpu(workspace["item.env_action"])
-                step = io.step(env, env_action)
-                done = (step.terminated | step.truncated).to(torch.bool)
-
-                for env_i in range(reader.num_envs):
-                    if prev_done[env_i]:
-                        continue
-                    yield {
-                        "obs": {k[len("item.obs_") :]: v[env_i] for k, v in norm_obs.items()},
-                        "action": detach_cpu(workspace["item.action"])[env_i],
-                        "reward": step.reward[env_i],
-                        "terminated": step.terminated[env_i],
-                        "truncated": step.truncated[env_i],
-                        "episode_id": int(episode_id[env_i]),
-                    }
-                    if done[env_i]:
-                        completed += 1
-                        episode_id[env_i] += reader.num_envs
-
-                raw_obs = to_device(step.next_obs, device)
-                prev_done = done
+            cycle = Cycle(ctx, deterministic=deterministic, episode_id=dm._runner.episode_id)
+            while not until(cycle):
+                yield cycle, cycle.step()
         finally:
-            for node, prev in zip(nodes, prev_training):
-                node.training = prev
-            close = getattr(env, "close", None)
-            if callable(close):
-                close()
+            dm._restore_training(previous)
+            dm._engine_epoch += 1
+            ctx.engine.reset()
 
-    def batch_meta(self, dims: dict[str, Any], fields: set[str]) -> dict[str, tuple[int, ...]]:
-        """Static shape inference from published ``runtime_dims()``, restricted to ``fields``
-        (the datamodule's declared collate fields) — no live policy required (unlike the
-        item-subgraph probe the offline path uses, ``ctx.policy`` may not exist yet at dry-run
-        time for a freshly-constructed module)."""
-        meta: dict[str, tuple[int, ...]] = {}
-        if "obs_state_dim" in dims:
-            state_shape = (int(dims["obs_state_dim"]),)
-            for name in ("obs_state", "next_obs_state"):
-                if name in fields:
-                    meta[name] = state_shape
-        if "obs_pixels_shape" in dims:
-            pixels_shape = tuple(int(d) for d in dims["obs_pixels_shape"])
-            for name in ("obs_pixels", "next_obs_pixels"):
-                if name in fields:
-                    meta[name] = pixels_shape
-        if "action" in fields:
-            action_dims = dims.get("multi_action_dims")
-            meta["action"] = tuple(int(d) for d in action_dims) if action_dims else ()
-        scalar: tuple[int, ...] = ()
-        for name in (
-            "reward", "terminated", "truncated", "log_prob", "value", "advantage", "return_",
-            "episode_start", "mask", "weight", "index", "n_step_discount", "episode_id",
-        ):
-            if name in fields:
-                meta[name] = scalar
-        return meta
+    def eval_steps(self, module: Any) -> Iterator[Any]:
+        """Per-step collated batches of the deterministic cycle until ``eval_episodes`` episodes ended."""
+        episodes = self._dm._runner.eval_episodes
+        for _, row in self.play(module, until=lambda cycle: cycle.ended >= episodes):
+            yield self._dm._collate_env_axis(row)
+
+    def probe_batch(self) -> Any:
+        """One collated step from a reset engine, a zero action and zero placeholders for the other fed-back atoms,
+        run with frozen statistics. Fields no node produces (buffer outputs) are absent."""
+        dm = self._dm
+        engine = dm._engine_node
+        engine.open(engine.seed)
+        spec = engine.spec()
+        n = spec.num_envs
+        keys = dm._engine_rec.out_key
+        values = engine.reset()
+        feedback = {}
+        for atom, field in dm.contract.feedback.items():
+            if atom == ACTION_ATOM:
+                dtype = torch.int64 if spec.num_actions is not None else getattr(torch, spec.action_dtype)
+                shape = () if spec.num_actions is not None else spec.action_shape
+                feedback[f"item.{field}"] = torch.zeros((n, *shape), dtype=dtype)
+            else:
+                feedback[f"item.{field}"] = torch.zeros(n)
+        previous = dm._set_training(False)
+        try:
+            state = {k: v for k, v, (_, _, role) in zip(keys, values, spec.outputs) if role == "state"}
+            cur = dm._stream_pass(state, frozenset({"preprocess"}))
+            end = dm._stream_pass({**dict(zip(keys, values)), **feedback}, END_PHASES)
+            return dm._collate_env_axis(build_row(cur, end))
+        finally:
+            dm._restore_training(previous)
 
 
 class _RunnerIterable(IterableDataset):
@@ -154,38 +113,13 @@ class _RunnerIterable(IterableDataset):
 
 
 class _StreamEvalDataset(IterableDataset):
-    """Capture-only eval iterable: yields per-step collated batches carrying ``episode_id``."""
+    """Capture-only eval iterable: yields per-step collated batches carrying the episode ids."""
 
-    def __init__(self, *, regime: InteractiveRegime, module: Any, episodes: int, deterministic: bool, seed: int) -> None:
-        self._regime = regime
-        self._module = module
-        self._episodes = int(episodes)
-        self._deterministic = bool(deterministic)
-        self._seed = int(seed)
+    def __init__(self, regime: InteractiveRegime, module: Any) -> None:
+        self._regime, self._module = regime, module
 
     def __iter__(self) -> Iterator[Any]:
-        dm = self._regime._dm
-        for record in self._regime.eval_steps(
-            self._module, episodes=self._episodes, deterministic=self._deterministic, seed=self._seed
-        ):
-            yield dm._collate_fn([_eval_seed_item(record)])
-
-
-def _eval_seed_item(record: dict[str, Any]) -> dict[str, Any]:
-    """Unbatched per-sample fields — ``dm._collate_fn`` (called with a length-1 list) supplies
-    the sole batch axis via ``Stack``; pre-adding one here would double-batch every field."""
-    seed_item: dict[str, Any] = {f"item.obs_{k}": v for k, v in record["obs"].items()}
-    seed_item["item.action"] = _as_tensor(record["action"])
-    seed_item["item.reward"] = _as_tensor(record["reward"])
-    seed_item["item.terminated"] = _as_tensor(record["terminated"])
-    seed_item["item.truncated"] = _as_tensor(record["truncated"])
-    seed_item["item.mask"] = torch.tensor(1.0)
-    seed_item["item.episode_id"] = torch.tensor(record["episode_id"], dtype=torch.long)
-    return seed_item
-
-
-def _as_tensor(value: Any) -> torch.Tensor:
-    return value if isinstance(value, torch.Tensor) else torch.as_tensor(value)
+        yield from self._regime.eval_steps(self._module)
 
 
 def _policy_device(module: Any) -> torch.device:
@@ -195,13 +129,3 @@ def _policy_device(module: Any) -> torch.device:
     if isinstance(dev, str):
         return torch.device(dev)
     return torch.device("cpu")
-
-
-def _ensure_episode_log(module: Any) -> list[tuple[float, int]] | None:
-    if module is None:
-        return None
-    log = getattr(module, "_rl_episode_log", None)
-    if log is None:
-        log = []
-        module._rl_episode_log = log
-    return log

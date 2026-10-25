@@ -1,9 +1,12 @@
 """``RolloutBuffer`` — the on-policy buffer: collect a fixed number of steps, compute GAE, yield shuffled minibatches, discard.
 
 Advantages use ``delta_t = r_t + gamma * (1 - terminated_t) * V_{t+1} - V_t`` and cut the trace at every episode end
-(``terminated`` or ``truncated``). A truncated step still bootstraps: under next-step autoreset the step after it is the
-masked final-observation step, so ``V_{t+1}`` is the value of the true final observation. Masked steps (``item.mask == 0``)
-are dropped from the training batch.
+(``terminated`` or ``truncated``). Engines reset in the same step, so ``V_{t+1}`` after an episode end is the value of
+the reset state: a time-limit truncation bootstraps from it, a small bias that the cut trace bounds. Rows the optional
+``valid`` role marks invalid are dropped from the training batch.
+
+The buffer reads the keys bound by its mapping-form ``in`` (``reward``, ``terminated``, ``truncated``, ``value`` and
+optionally ``valid``) and writes ``return_`` then ``advantage`` through its positional ``out``.
 """
 
 from __future__ import annotations
@@ -13,6 +16,7 @@ from typing import Any, Iterator
 import torch
 
 from teia.base.data.nodes import StreamReshape
+from teia.core.datamodule.interactive._roles import bind_roles
 from teia.core.datamodule.interactive._tensor_ops import step_rows
 
 
@@ -38,7 +42,14 @@ class RolloutBuffer(StreamReshape):
         self._steps: list[dict[str, torch.Tensor]] = []
         self._samples: dict[str, torch.Tensor] | None = None
 
+    @property
+    def value_key(self) -> str:
+        return self.in_roles["value"]
+
     def configure(self, num_envs: int, generator: torch.Generator | None = None, **_: Any) -> None:
+        self._roles, self._out = bind_roles(
+            self, required=("reward", "terminated", "truncated", "value"), optional=("valid",), outs=("return_", "advantage")
+        )
         self._num_envs = num_envs
         self._generator = generator or torch.Generator()
         self.on_consumed()
@@ -49,18 +60,17 @@ class RolloutBuffer(StreamReshape):
     def ready(self) -> bool:
         return len(self._steps) >= self.rollout_steps
 
-    def finalize_rollout(self, last_value: torch.Tensor, last_done: torch.Tensor) -> None:
-        """GAE over the collected steps. ``last_value`` is ``V`` of the observation after the last step; ``last_done`` is
-        unused because each step already carries its own ``terminated`` and ``truncated`` flags."""
-        del last_done
+    def finalize_rollout(self, last_value: torch.Tensor) -> None:
+        """GAE over the collected steps. ``last_value`` is ``V`` of the state after the last step; each step carries
+        its own ``terminated`` and ``truncated`` flags."""
         rollout = {key: torch.stack([step[key] for step in self._steps]) for key in self._steps[0]}
         steps = len(self._steps)
 
         def per_env(key: str) -> torch.Tensor:
             return rollout[key].float().reshape(steps, self._num_envs)
 
-        reward, value, terminated = per_env("item.reward"), per_env("item.value"), per_env("item.terminated")
-        done = torch.maximum(terminated, per_env("item.truncated"))
+        reward, value, terminated = per_env(self._roles["reward"]), per_env(self._roles["value"]), per_env(self._roles["terminated"])
+        done = torch.maximum(terminated, per_env(self._roles["truncated"]))
         next_value = torch.cat([value[1:], last_value.reshape(1, self._num_envs).float()])
         delta = reward + self.gamma * (1.0 - terminated) * next_value - value
         advantage = torch.zeros_like(delta)
@@ -68,18 +78,18 @@ class RolloutBuffer(StreamReshape):
         for t in reversed(range(delta.shape[0])):
             trace = delta[t] + self.gamma * self.gae_lambda * (1.0 - done[t]) * trace
             advantage[t] = trace
-        rollout["item.return_"] = advantage + value
-        keep = per_env("item.mask") > 0 if "item.mask" in rollout else torch.ones_like(reward, dtype=torch.bool)
+        rollout[self._out["return_"]] = advantage + value
+        keep = per_env(self._roles["valid"]) > 0 if "valid" in self._roles else torch.ones_like(reward, dtype=torch.bool)
         if self.normalize_advantage and keep.sum() > 1:
             kept = advantage[keep]
             advantage = (advantage - kept.mean()) / (kept.std() + 1e-8)
-        rollout["item.advantage"] = advantage
+        rollout[self._out["advantage"]] = advantage
         self._samples = {key: tensor[keep] for key, tensor in rollout.items()}
 
     def sample_iter(self) -> Iterator[list[dict[str, torch.Tensor]]]:
         if self._samples is None:
             raise RuntimeError("RolloutBuffer.sample_iter() before finalize_rollout().")
-        size = len(self._samples["item.advantage"])
+        size = len(self._samples[self._out["advantage"]])
         for _ in range(self.update_epochs):
             order = torch.randperm(size, generator=self._generator)
             for start in range(0, size, self.minibatch_size):

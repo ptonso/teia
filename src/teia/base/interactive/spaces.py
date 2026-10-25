@@ -109,7 +109,7 @@ def _to_tensor(array: Any) -> Tensor:
 
 
 def action_to_numpy(action: Tensor, space: Any) -> np.ndarray:
-    """Convert a policy ``env_action`` tensor into the numpy array ``env.step`` expects."""
+    """Convert a policy action tensor into the numpy array a Gymnasium ``env.step`` expects."""
     import gymnasium as gym
 
     arr = action.detach().to("cpu").numpy()

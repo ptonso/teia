@@ -39,8 +39,7 @@ class ActionActivation(BaseActivation):
     ) -> ActionSample:
         """Training/evaluation action sampling. Not ONNX-traced.
 
-        Returns an :class:`ActionSample` carrying the distribution-space ``action``,
-        the post-scale ``env_action`` sent to ``env.step``, and optional
-        ``log_prob`` / ``entropy``. Collection uses ``deterministic=False``;
+        Returns an :class:`ActionSample` carrying the activation-range ``action`` and optional
+        ``log_prob`` / ``entropy``; the engine maps the range to simulator units. Collection uses ``deterministic=False``;
         eval/infer use ``deterministic=True``.
         """

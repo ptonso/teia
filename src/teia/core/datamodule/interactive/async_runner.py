@@ -1,24 +1,17 @@
 """Asynchronous Runner — overlaps collection with training (the parallel collect+train mode).
 
-A background **producer** fills the stream-reshape node (the buffer) while the **learner**
-(Lightning's main thread) drains ``stream_reshape.sample_iter()`` continuously. This is correct
-*by construction* only for off-policy (replay) reshape nodes: the producer acts with weights
-that drift a few updates behind the learner, which replay already tolerates. A rollout
-(on-policy) reshape node under async would train on a stale, never-finalized rollout, so it is
-rejected — use ``SyncRunner`` there.
+A background **producer** fills the buffer while the **learner** (Lightning's main thread) drains
+``buffer.sample_iter()`` continuously. This is correct *by construction* only for off-policy (replay) buffers: the
+producer acts with weights that drift a few updates behind the learner, which replay already tolerates. A rollout
+(on-policy) buffer under async would train on a stale, never-finalized rollout, so it is rejected; use ``SyncRunner``.
 
 ``parallel`` selects the production substrate:
 
-* ``inline`` — degenerate, one collect step per learner pull, no thread. Deterministic;
-  same observable behavior as ``SyncRunner`` on a replay buffer. Used for tests/debugging.
-* ``thread`` — a daemon ``threading.Thread`` runs the collection loop and appends to the
-  reshape node under a lock; the learner drains under the same lock. The producer shares the
-  learner's module memory, so weights are live with no broadcast. Env stepping and torch
-  inference release the GIL, so collection genuinely overlaps the learner's compute.
-
-A future ``subproc`` substrate (Ape-X/IMPALA-style actor processes) would not share memory
-and would need explicit ``state_dict`` weight broadcast; it is out of scope here.
-
+* ``inline`` — one collect step per learner pull, no thread. Deterministic; same observable behavior as ``SyncRunner``
+  on a replay buffer. Used for tests/debugging.
+* ``thread`` — a daemon ``threading.Thread`` runs the collection loop and appends to the buffer under a lock; the
+  learner drains under the same lock. The producer shares the learner's module memory, so weights are live with no
+  broadcast. Engine stepping and torch inference release the GIL, so collection overlaps the learner's compute.
 """
 
 from __future__ import annotations
@@ -27,19 +20,15 @@ import threading
 import time
 from typing import Any, Iterator
 
-from teia.core.datamodule.interactive._collect import CollectState
+from teia.core.datamodule.interactive._cycle import Cycle
 from teia.core.datamodule.interactive.runner_base import Runner
 
 
 class AsyncRunner(Runner):
-    """Overlap collection with training via an inline or threaded off-policy producer."""
-
-    def __init__(self, parallel: str = "thread") -> None:
+    def __init__(self, *, parallel: str = "thread", **config: Any) -> None:
+        super().__init__(**config)
         if parallel not in ("inline", "thread"):
-            raise ValueError(
-                f"AsyncRunner.parallel must be 'inline' or 'thread' "
-                f"(subproc is a future substrate); got {parallel!r}."
-            )
+            raise ValueError(f"AsyncRunner.parallel must be 'inline' or 'thread'; got {parallel!r}.")
         self._parallel = parallel
         self._lock = threading.Lock()
         self._stop = threading.Event()
@@ -48,34 +37,31 @@ class AsyncRunner(Runner):
 
     def iter_minibatches(self) -> Iterator[Any]:
         ctx = self.ctx
-        if ctx.stream_reshape is None or callable(getattr(ctx.stream_reshape, "finalize_rollout", None)):
-            raise ValueError(
-                "AsyncRunner requires an off-policy reshape node (e.g. replay): the rollout-free "
-                "default and on-policy rollout buffers would train on a stale, never-finalized "
-                "rollout under async. Use SyncRunner."
-            )
-        ctx.stream_reshape.configure(num_envs=ctx.num_envs, generator=ctx.generator)
-        if self._parallel == "inline":
-            yield from self._inline()
-        else:
-            yield from self._threaded()
+        if ctx.buffer is None or callable(getattr(ctx.buffer, "finalize_rollout", None)):
+            raise ValueError("AsyncRunner requires an off-policy buffer (replay); a rollout buffer needs SyncRunner.")
+        ctx.buffer.configure(num_envs=ctx.num_envs, generator=ctx.generator)
+        ctx.dm._set_training(ctx.training)
+        self._cycle = Cycle(ctx, deterministic=False, return_key=self.return_key, episode_id=self.episode_id)
+        yield from (self._inline() if self._parallel == "inline" else self._threaded())
 
-    # -- inline (no thread) -------------------------------------------------------
+    def _collect_once(self) -> None:
+        row = self._cycle.step()
+        with self._lock:
+            self.ctx.buffer.add(row)
+
     def _inline(self) -> Iterator[Any]:
         ctx = self.ctx
-        state = CollectState(ctx, self._lock)
-        while state.env_step < ctx.total_env_steps:
-            state.step_once()
-            if ctx.stream_reshape.ready():
-                for minibatch_seeds in ctx.stream_reshape.sample_iter():
-                    yield ctx.dm._collate_fn(minibatch_seeds)
-                ctx.stream_reshape.on_consumed()
+        while self._cycle.env_steps < self.total_env_steps:
+            self._collect_once()
+            if ctx.buffer.ready():
+                for minibatch in ctx.buffer.sample_iter():
+                    yield ctx.dm._collate_fn(minibatch)
+                ctx.buffer.on_consumed()
 
-    # -- threaded -----------------------------------------------------------------
     def _threaded(self) -> Iterator[Any]:
         self._stop.clear()
         self._collect_error = None
-        self._thread = threading.Thread(target=self._collect_loop, name="rl-collector", daemon=True)
+        self._thread = threading.Thread(target=self._collect_loop, name="stream-collector", daemon=True)
         self._thread.start()
         try:
             while True:
@@ -86,33 +72,29 @@ class AsyncRunner(Runner):
                 if self._collect_error is not None:
                     raise self._collect_error
                 if not self._thread.is_alive():
-                    # Producer finished; drain any final ready-cycle, then stop.
                     batches = self._drain_ready()
                     if batches:
                         yield from batches
                         continue
                     break
-                time.sleep(0)  # cooperatively yield the GIL to the producer
+                time.sleep(0)
         finally:
             self.close()
 
     def _drain_ready(self) -> list[Any] | None:
-        """Under the lock: if the reshape node is ready, materialize one sample cycle and reset it."""
-        ctx = self.ctx
+        buffer = self.ctx.buffer
         with self._lock:
-            if not ctx.stream_reshape.ready():
+            if not buffer.ready():
                 return None
-            minibatch_seeds_list = list(ctx.stream_reshape.sample_iter())
-            ctx.stream_reshape.on_consumed()
-        return [ctx.dm._collate_fn(seeds) for seeds in minibatch_seeds_list]
+            minibatches = list(buffer.sample_iter())
+            buffer.on_consumed()
+        return [self.ctx.dm._collate_fn(minibatch) for minibatch in minibatches]
 
     def _collect_loop(self) -> None:
-        ctx = self.ctx
         try:
-            state = CollectState(ctx, self._lock)
-            while not self._stop.is_set() and state.env_step < ctx.total_env_steps:
-                state.step_once()
-        except BaseException as err:  # surfaced to the learner thread in _threaded
+            while not self._stop.is_set() and self._cycle.env_steps < self.total_env_steps:
+                self._collect_once()
+        except BaseException as err:
             self._collect_error = err
 
     def close(self) -> None:
@@ -121,3 +103,17 @@ class AsyncRunner(Runner):
         if thread is not None and thread.is_alive():
             thread.join(timeout=5.0)
         self._thread = None
+
+    def drain_episodes(self) -> list[tuple[float, int]]:
+        cycle = getattr(self, "_cycle", None)
+        if cycle is None:
+            return []
+        with self._lock:
+            return cycle.drain_episodes()
+
+    def metrics(self) -> dict[str, float]:
+        cycle = getattr(self, "_cycle", None)
+        if cycle is None:
+            return {}
+        with self._lock:
+            return {**cycle.drain_metrics(), **self.ctx.buffer.metrics()}

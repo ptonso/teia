@@ -1,16 +1,12 @@
 """``PolicyAdapter`` — the Runner's only window into the bound policy module (contract).
 
-The adapter turns the generic node graph (``forward -> pred.*``) into the two operations the
-collection loop needs — ``act`` (sample an action) and ``value`` (bootstrap) — without the
-loop ever reaching into module internals. It is the **policy-query seam** (taxonomy axis E):
-swapping the action distribution (Gaussian / epsilon-greedy / squashed-Gaussian)
-changes only the module preset, never the loop.
+The adapter turns one act batch into the captured atoms the task contract names (``{"policy.action": ...}``)
+without the loop reaching into module internals. It is the **policy-query seam**: swapping the action
+distribution changes only the module preset, never the loop.
 
-``PolicyAdapter`` is an ABC so non-feedforward policies (recurrent R2D2, model-based Dreamer)
-can supply their own ``act``/``value`` and carry per-env latent state. The canonical stateless
-implementation ``FeedforwardPolicyAdapter`` is plumbing and lives in
-``teia.core.datamodule.interactive.policy``.
-
+``PolicyAdapter`` is an ABC so non-feedforward policies (recurrent R2D2, model-based Dreamer) can supply their
+own ``act`` and carry per-env latent state, cleared in ``reset``. The canonical stateless implementation
+``FeedforwardPolicyAdapter`` is plumbing and lives in ``teia.core.datamodule.interactive.policy``.
 """
 
 from __future__ import annotations
@@ -21,15 +17,9 @@ from typing import Any
 import torch
 from torch import Tensor
 
-from teia.base.interactive.batch import ActionSample
-
 
 class PolicyAdapter(ABC):
-    """The Runner's window into the policy: ``act`` (sample) and ``value`` (bootstrap).
-
-    Stateless for the feedforward family; stateful (per-env latent state) for
-    recurrent / model-based adapters, which override ``reset`` to clear finished envs.
-    """
+    """The Runner's window into the policy: ``act`` one batch, ``reset`` finished environments."""
 
     @property
     @abstractmethod
@@ -38,20 +28,12 @@ class PolicyAdapter(ABC):
 
     @abstractmethod
     def act(
-        self,
-        obs_batch: Any,
-        *,
-        deterministic: bool = False,
-        generator: torch.Generator | None = None,
-    ) -> ActionSample:
-        """Sample one action for ``obs_batch``; recurrent adapters advance/store state."""
+        self, act_batch: Any, *, deterministic: bool = False, generator: torch.Generator | None = None
+    ) -> dict[str, Tensor]:
+        """Captured atoms for ``act_batch``, keyed by the contract's capture names."""
 
-    @abstractmethod
-    def value(self, obs_batch: Any) -> Tensor:
-        """Bootstrap value for ``obs_batch`` (off-policy adapters may not use it)."""
-
-    def reset(self, done_mask: Tensor | None = None) -> None:
-        """Reset per-env latent state where ``done_mask`` is true. No-op for feedforward."""
+    def reset(self, boundary: Tensor) -> None:
+        """Clear per-env latent state where ``boundary`` is true. No-op for feedforward."""
         return None
 
 

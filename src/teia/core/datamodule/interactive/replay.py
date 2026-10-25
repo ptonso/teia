@@ -2,8 +2,9 @@
 
 Storage is a ring of ``capacity // num_envs`` steps, each holding one transition per env. ``ready()`` fires once
 ``warmup_steps`` transitions were added and ``train_frequency`` more arrived since the last ``on_consumed()``, which
-resets the cadence and keeps the data. Steps with ``item.mask == 0`` (the spurious step after an autoreset) are never
-sampled.
+resets the cadence and keeps the data. The buffer reads the keys bound by its mapping-form ``in`` (``reward``,
+``terminated``, ``truncated`` and optionally ``valid``, the engine's validity mask under ``all_done``) and writes the
+keys of its positional ``out``. Successor features are the ``item.next_<K>`` keys the runner stores in each row.
 """
 
 from __future__ import annotations
@@ -13,14 +14,19 @@ from typing import Any, Iterator
 import torch
 
 from teia.base.data.nodes import StreamReshape
+from teia.core.datamodule.interactive._roles import bind_roles
 from teia.core.datamodule.interactive._tensor_ops import step_rows
 
 
 class ReplayBuffer(StreamReshape):
     """Uniform replay. A sample is the transition at step ``t`` with its n-step return: the reward sums
     ``gamma^k * r`` over the window, which ends early at an episode end or at the newest stored step, and
-    ``item.n_step_discount`` is ``gamma^len`` (the factor the bootstrap term needs). ``item.terminated`` is the flag of
-    the last step in the window, so a truncation still bootstraps."""
+    the ``n_step_discount`` output is ``gamma^len`` (the factor the bootstrap term needs). ``terminated`` is the flag of
+    the last step in the window, so a truncation still bootstraps. Outputs, in order: ``weight``, ``index``,
+    ``n_step_discount``."""
+
+    IN_ROLES = ("reward", "terminated", "truncated")
+    OUT_ROLES = ("weight", "index", "n_step_discount")
 
     def __init__(
         self,
@@ -40,9 +46,9 @@ class ReplayBuffer(StreamReshape):
         self.minibatch_size = minibatch_size
         self.n_step = n_step
         self.gamma = gamma
-        self.configure(num_envs=1)
 
     def configure(self, num_envs: int, generator: torch.Generator | None = None, **_: Any) -> None:
+        self._roles, self._out = bind_roles(self, required=self.IN_ROLES, optional=("valid",), outs=self.OUT_ROLES)
         self._num_envs = num_envs
         self._generator = generator or torch.Generator()
         self._max_steps = max(self.capacity // num_envs, 1)
@@ -82,8 +88,8 @@ class ReplayBuffer(StreamReshape):
     def _valid(self) -> torch.Tensor:
         """Flat ``step * num_envs + env`` indices that may start a sample."""
         keep = torch.ones(self._size, self._num_envs, dtype=torch.bool)
-        if "item.mask" in self._store:
-            keep = self._store["item.mask"][: self._size] > 0
+        if "valid" in self._roles:
+            keep = self._store[self._roles["valid"]][: self._size] > 0
         return keep.reshape(-1).nonzero().reshape(-1)
 
     def _draw(self, count: int) -> torch.Tensor:
@@ -94,23 +100,24 @@ class ReplayBuffer(StreamReshape):
         return [self._assemble(*divmod(int(i), self._num_envs)) for i in flat]
 
     def _assemble(self, step: int, env: int) -> dict[str, torch.Tensor]:
+        r, term, trunc = (self._roles[role] for role in self.IN_ROLES)
         ahead = (self._pos - 1 - step) % self._max_steps
         reward, taken = 0.0, 0
         while True:
             last = (step + taken) % self._max_steps
-            reward += self.gamma**taken * float(self._store["item.reward"][last, env])
+            reward += self.gamma**taken * float(self._store[r][last, env])
             taken += 1
-            ended = bool(self._store["item.terminated"][last, env] | self._store["item.truncated"][last, env])
+            ended = bool(self._store[term][last, env] | self._store[trunc][last, env])
             if ended or taken >= self.n_step or taken > ahead:
                 break
         record = {key: tensor[step, env].clone() for key, tensor in self._store.items()}
         for key, tensor in self._store.items():
-            if key.startswith("item.next_obs_") or key in ("item.terminated", "item.truncated"):
+            if key.startswith("item.next_") or key in (term, trunc):
                 record[key] = tensor[last, env].clone()
-        record["item.reward"] = torch.tensor(reward, dtype=self._store["item.reward"].dtype)
-        record["item.n_step_discount"] = torch.tensor(self.gamma**taken)
-        record["item.weight"] = torch.ones(())
-        record["item.index"] = torch.tensor(step * self._num_envs + env)
+        record[r] = torch.tensor(reward, dtype=self._store[r].dtype)
+        record[self._out["n_step_discount"]] = torch.tensor(self.gamma**taken)
+        record[self._out["weight"]] = torch.ones(())
+        record[self._out["index"]] = torch.tensor(step * self._num_envs + env)
         return record
 
 
@@ -145,7 +152,7 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         records = super()._batch(flat)
         weights = self._draw_weights / self._draw_weights.max()
         for record, weight in zip(records, weights, strict=True):
-            record["item.weight"] = weight
+            record[self._out["weight"]] = weight
         return records
 
     def update_priorities(self, index: torch.Tensor, priority: torch.Tensor) -> None:
@@ -156,7 +163,10 @@ class PrioritizedReplayBuffer(ReplayBuffer):
 
 class SequenceBuffer(ReplayBuffer):
     """Samples windows of ``sequence_length`` consecutive steps of one env, ``[T, ...]`` per field. A window ends after
-    the first episode end or at the newest stored step, and is zero-padded with ``item.mask == 0``."""
+    the first episode end or at the newest stored step, and is zero-padded. Its single output is the padding mask
+    (1 for a real step that the optional ``valid`` role admits)."""
+
+    OUT_ROLES = ("pad_mask",)
 
     def __init__(self, sequence_length: int = 16, **kwargs: Any) -> None:
         self.sequence_length = sequence_length
@@ -167,9 +177,10 @@ class SequenceBuffer(ReplayBuffer):
 
     def _window(self, step: int, env: int) -> dict[str, torch.Tensor]:
         ahead = (self._pos - 1 - step) % self._max_steps
+        term, trunc = self._roles["terminated"], self._roles["truncated"]
         steps = [(step + k) % self._max_steps for k in range(min(ahead, self.sequence_length - 1) + 1)]
         for length, slot in enumerate(steps, start=1):
-            if bool(self._store["item.terminated"][slot, env] | self._store["item.truncated"][slot, env]):
+            if bool(self._store[term][slot, env] | self._store[trunc][slot, env]):
                 steps = steps[:length]
                 break
         window = {}
@@ -177,6 +188,7 @@ class SequenceBuffer(ReplayBuffer):
             padded = torch.zeros((self.sequence_length, *tensor.shape[2:]), dtype=tensor.dtype)
             padded[: len(steps)] = tensor[steps, env]
             window[key] = padded
-        window["item.mask"] = torch.zeros(self.sequence_length)
-        window["item.mask"][: len(steps)] = self._store["item.mask"][steps, env].float() if "item.mask" in self._store else 1.0
+        pad = torch.zeros(self.sequence_length)
+        pad[: len(steps)] = self._store[self._roles["valid"]][steps, env].float() if "valid" in self._roles else 1.0
+        window[self._out["pad_mask"]] = pad
         return window

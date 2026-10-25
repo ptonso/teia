@@ -150,7 +150,7 @@ def _resolve_out_shape_token(token: str, dm: Any, *, node_name: str) -> tuple[in
     # that resolves to an int (-> 1-tuple) or an int-tuple is a valid out_shape token. This is
     # the single open-extension path (spec-sanctioned, overview.md:73): it covers the standard
     # class-count tokens (``num_classes`` / ``num_targets`` / ``num_labels``) and pack-specific
-    # dim-refs alike (the interactive regime's ``action_dim`` / ``num_actions`` / ``obs_state_dim`` / ``obs_pixels_shape``)
+    # dim-refs alike (an engine's ``action_dim`` / ``num_actions`` and the ``<key>_dim`` / ``<key>_shape`` of its outputs)
     # without a core whitelist edit.
     if hasattr(dm, token):
         resolved = _coerce_dimref_value(getattr(dm, token))
@@ -181,8 +181,8 @@ def _coerce_dimref_value(value: Any) -> tuple[int, ...] | None:
 def _batch_leading_dim(batch: Any) -> int:
     """Leading (batch) dimension read from the first non-``None`` tensor field (C2).
 
-    ``batch[0]`` is unsafe for batch types with optional leading fields (e.g. the interactive regime's composed
-    batch whose ``obs_state`` may be ``None`` for pixels-only presets). Scan in field order
+    ``batch[0]`` is unsafe for batch types with optional leading fields (e.g. a stream-mode composed
+    batch whose first field may be ``None``). Scan in field order
     and use the first tensor that exposes a leading dim.
     """
     import torch

@@ -19,6 +19,8 @@ class FakeEngine(Engine):
         self.opened = 0
         self._t: torch.Tensor | None = None
 
+    seed = 0
+
     def open(self, seed: int) -> None:
         if self._t is not None:
             return
@@ -31,9 +33,9 @@ class FakeEngine(Engine):
         self._t = None
 
     def spec(self) -> EngineSpec:
-        outputs = [((2,), "float32"), ((), "float32"), ((), "bool"), ((), "bool")]
+        outputs = [((2,), "float32", "state"), ((), "float32", "outcome"), ((), "bool", "outcome"), ((), "bool", "outcome")]
         if self.reset_policy == "all_done":
-            outputs.append(((), "bool"))
+            outputs.append(((), "bool", "outcome"))
         return EngineSpec(self.num_envs, tuple(outputs), (1,), "float32", -1.0, 1.0)
 
     def _pack(self, obs_t, reward, terminated, truncated, valid):

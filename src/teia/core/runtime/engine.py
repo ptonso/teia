@@ -106,12 +106,7 @@ def train_project(
 
     _with_dependency_context(config, run_hook_group, config, "pre_build", context)
     train_checkpoint = initial_checkpoint or (config.get("train") or {}).get("resume_from")
-    _load_task_contract(config)
-    datamodule_obj = _with_dependency_context(
-        config,
-        instantiate,
-        _prepare_datamodule_config(config=config, project_dir=resolved_project_dir),
-    )
+    datamodule_obj = _build_datamodule(config, resolved_project_dir)
     module_obj = _with_dependency_context(config, instantiate, _prepare_module_config(config=config, checkpoint=train_checkpoint))
     context["datamodule"] = datamodule_obj
     context["module"] = module_obj
@@ -209,20 +204,20 @@ def _open_snapshot_stage(
     return config, context, selected_checkpoint
 
 
-def _load_task_contract(config: dict[str, Any]) -> None:
-    """Import the task contract before the datamodule is built: creating the class registers the batch fields
-    its collates emit (teia:base/task.md#field-registration)."""
-    if config.get("task"):
-        _with_dependency_context(config, instantiate, config["task"])
+def _build_datamodule(config: dict[str, Any], project_dir: Path) -> Any:
+    """Instantiate the task contract first, since creating its class registers the batch fields the datamodule's
+    collates emit (teia:base/task.md#field-registration), then the datamodule, which receives the contract."""
+    contract = _with_dependency_context(config, instantiate, config["task"]) if config.get("task") else None
+    datamodule = _with_dependency_context(
+        config, instantiate, _prepare_datamodule_config(config=config, project_dir=project_dir)
+    )
+    if hasattr(datamodule, "bind_contract"):
+        datamodule.bind_contract(contract)
+    return datamodule
 
 
 def _instantiate_stage(config: dict[str, Any], context: dict[str, Any], checkpoint: str | None) -> tuple[Any, Any]:
-    _load_task_contract(config)
-    datamodule_obj = _with_dependency_context(
-        config,
-        instantiate,
-        _prepare_datamodule_config(config=config, project_dir=Path(context["project_dir"])),
-    )
+    datamodule_obj = _build_datamodule(config, Path(context["project_dir"]))
     module_obj = _with_dependency_context(config, instantiate, _prepare_module_config(config=config, checkpoint=checkpoint))
     context["datamodule"] = datamodule_obj
     context["module"] = module_obj
