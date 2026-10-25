@@ -1,6 +1,6 @@
 """Online episodic-metrics logging callback for the interactive regime.
 
-Drains the collection iterable's per-episode return/length log (``module._rl_episode_log``) on
+Drains the runner's per-episode return/length records (``datamodule._runner.drain_episodes()``) on
 every train batch into a rolling window and forwards the window mean to Lightning logging, so
 episodic return shows up on the progress bar and any attached logger without the datamodule
 needing direct logger access. Logs the rolling-window mean on every train batch (not just drain
@@ -31,13 +31,12 @@ class OnlineMetricsCallback(Callback):
         self._total_episodes = 0
 
     def on_train_batch_end(self, trainer: Any, pl_module: Any, *args: Any, **kwargs: Any) -> None:
-        log: list[tuple[float, int]] | None = getattr(pl_module, "_rl_episode_log", None)
-        if log:
-            for r, length in log:
-                self._returns.append(float(r))
-                self._lengths.append(float(length))
-            self._total_episodes += len(log)
-            log.clear()
+        runner = getattr(getattr(trainer, "datamodule", None), "_runner", None)
+        log = runner.drain_episodes() if runner is not None else []
+        for r, length in log:
+            self._returns.append(float(r))
+            self._lengths.append(float(length))
+        self._total_episodes += len(log)
         if not self._returns:
             pl_module.log("env/episodic_return", 0.0, on_step=True, on_epoch=False, prog_bar=True)
             pl_module.log("env/episodic_length", 0.0, on_step=True, on_epoch=False)

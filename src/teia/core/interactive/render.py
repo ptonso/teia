@@ -1,56 +1,12 @@
-"""Live-rendering contract + generic frame sink for the interactive regime.
-
-``LiveRenderer``/``LiveStepRecord`` are the standardized contract: :class:`LiveViewCallback`
-rolls out the current policy on a cadence and hands the project's renderer one
-``LiveStepRecord`` per env step. The renderer interprets the standardized fields however it
-likes; teia never knows what the numbers mean, only project code does. ``OpenCvFrameViewer``
-is the env-agnostic sink that blits whatever ``io.render(env)`` produced (``rgb_array``).
-"""
+"""Generic frame sink for the live view: ``OpenCvFrameViewer`` blits whatever ``engine.render()`` produced."""
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any
 
 import numpy as np
 import torch
 from torch import Tensor
-
-from teia.base.interactive.batch import EnvSpec
-
-
-@dataclass(frozen=True)
-class LiveStepRecord:
-    """One env step handed to the renderer.
-
-    ``obs`` is the **env-space** (pre-normalization) observation mapping with a leading
-    ``num_envs`` axis (1 for the live viewer). ``action`` is the env-space action the policy
-    sent to the environment. Scalars carry the leading env axis too.
-    """
-
-    step: int
-    obs: Mapping[str, Tensor]
-    action: Tensor
-    reward: Tensor
-    terminated: Tensor
-    truncated: Tensor
-
-
-class LiveRenderer(ABC):
-    """Project-supplied sink for the live policy rollout (window, drawing, event pump)."""
-
-    @abstractmethod
-    def open(self, env_spec: EnvSpec) -> None:
-        """Initialize the renderer (e.g. create the window). Called once, lazily."""
-
-    @abstractmethod
-    def show(self, record: LiveStepRecord) -> None:
-        """Render one env step."""
-
-    @abstractmethod
-    def close(self) -> None:
-        """Tear down the renderer."""
 
 
 class OpenCvFrameViewer:
@@ -104,4 +60,4 @@ class OpenCvFrameViewer:
         return self._cv2.cvtColor(arr, self._cv2.COLOR_RGB2BGR)
 
 
-__all__ = ["LiveRenderer", "LiveStepRecord", "OpenCvFrameViewer"]
+__all__ = ["OpenCvFrameViewer"]

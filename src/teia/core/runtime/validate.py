@@ -40,11 +40,13 @@ def validate_n_runs(config: dict[str, Any]) -> None:
 def _datamodule_requires_data_root(config: dict[str, Any]) -> bool:
     """Whether the datamodule needs a dataset root.
 
-    A live env stream source (``datamodule.env``, the interactive regime) collects transitions from
-    the environment and carries no dataset; the datamodule class' ``requires_data_root`` (default
-    True) governs every other (offline) datamodule.
+    A datamodule with an engine node (stream mode) collects transitions from a simulator and carries no
+    dataset; every other (offline) datamodule needs a root.
     """
-    return (config.get("datamodule") or {}).get("env") is None
+    from teia.core.datamodule.graph import discover_node_entries, parse_node
+
+    entries = discover_node_entries(dict(config.get("datamodule") or {}))
+    return not any(parse_node(name, entry).kind == "engine" for name, entry in entries)
 
 
 def _reject_legacy_data_contract(config: dict[str, Any]) -> None:

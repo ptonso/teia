@@ -2,14 +2,14 @@
 
 Mirrors decode collection on the activation side (``assemble.py``): walks a model-input
 ``batch.<field>`` backward through ``preprocess``-phase nodes — crossing the one ``Collate``
-seam between item and batch space — to its data-loading root (a ``read``/``join`` node, or a
+seam between item and batch space — to its data-loading root (a ``read``/``engine``/``join`` node, or a
 ``target``/``source``-phase transform that supplies an input field, e.g. ``ParseLabelme`` yielding
 ``item.img_path``), collecting each node's ``kernel``/``params()``. ``augment``-phase rewrites on
 the path are transparent: the
 walk steps past them to their rewrite predecessor without emitting a step, matching the runtime
 executor's train-only skip (an augment rewrite leaves the prior value in place off the train
-split). the interactive regime's stream-stage reader is an ordinary ``read`` node in this same graph, so a live
-datamodule's obs-normalize chain walks identically to any offline preprocess chain. See
+split). A stream-mode datamodule's engine roots a chain like a reader, so its observation-normalize chain walks
+identically to any offline preprocess chain. See
 teia:core/export.md and teia:base/data/nodes.md §"Phase enables export/inference slicing".
 """
 
@@ -53,7 +53,7 @@ def resolve_data_graph_chain(datamodule: Any, field: str) -> tuple[list[Preproce
     current = producers.final_producer[key]
     while True:
         rec = records_by_name[current]
-        if rec.kind in ("read", "join"):
+        if rec.kind in ("read", "engine", "join"):
             payload_key = key.split(".", 1)[1] if "." in key else key
             steps.reverse()
             return steps, payload_key, dict(_VALUE_PAYLOAD)

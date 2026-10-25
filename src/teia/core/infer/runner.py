@@ -31,7 +31,7 @@ def run_infer(
     if not callable(getattr(datamodule, "write_predictions", None)):
         raise RuntimeError(
             f"{type(datamodule).__name__} does not support `teia infer` (no predict dataset); "
-            "interactive runs are online rollouts."
+            "an engine-sourced (stream-mode) run is an online rollout."
         )
     output_dir = output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
