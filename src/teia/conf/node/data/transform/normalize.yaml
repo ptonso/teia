@@ -1,0 +1,3 @@
+_target_: teia.node.data.transform.normalize.Normalize
+stats: fit
+axis: -1

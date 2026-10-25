@@ -1,1 +1,2 @@
-_target_: teia.node.data.transform.normalize.NormalizeImage
+_target_: teia.node.data.transform.normalize.Normalize
+pixel_norm: imagenet
