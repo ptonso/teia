@@ -322,7 +322,8 @@ def _validate(records: list[IoNodeRecord], deps: dict[str, set[str]]) -> None:
                 )
         if rec.kind == "collate" and rec.field not in FIELD_VOCAB:
             raise ValueError(
-                f"data node '{rec.name}': collate field '{rec.field}' is not in teia.base.fields.FIELD_VOCAB."
+                f"data node '{rec.name}': collate field '{rec.field}' is neither shared vocabulary (teia.base.fields.FIELD_VOCAB) "
+                "nor a batch field of the task contract."
             )
 
 

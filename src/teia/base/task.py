@@ -11,6 +11,8 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any, ClassVar, Union
 
+from teia.base.fields import FIELD_VOCAB, register_field
+
 
 class TaskContractError(ValueError):
     """A composed run violates its task contract."""
@@ -60,11 +62,21 @@ MetaSpec = Union[Dim, Names]
 
 
 class TaskContract:
-    """Base task contract. Subclasses set ``meta``, ``batch`` (field → spec) and ``capture`` ("route.atom" → spec)."""
+    """Base task contract. Subclasses set ``meta``, ``batch`` (field → spec) and ``capture`` ("route.atom" → spec).
+
+    ``feedback`` (stream mode) maps a ``capture`` atom to the item field the runner writes it under. A subclass
+    registers the batch fields it declares, so a collate may emit them."""
 
     meta: ClassVar[dict[str, MetaSpec]] = {}
     batch: ClassVar[dict[str, Spec]] = {}
     capture: ClassVar[dict[str, Spec]] = {}
+    feedback: ClassVar[dict[str, str]] = {}
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        for name in cls.batch:
+            if name not in FIELD_VOCAB:
+                register_field(name)
 
     def targets(self) -> list[str]:
         """Batch fields captured as eval ground truth."""
@@ -85,6 +97,14 @@ class TaskContract:
         missing = sorted(set(self.capture) - self.derived() - set(capture_map))
         if missing:
             self._fail(f"netmodule `capture:` map lacks {missing}", self.capture)
+        if self.feedback:
+            if "policy.action" not in self.feedback:
+                self._fail("`feedback` must return 'policy.action', the atom sent to the engine", self.feedback)
+            for atom, field in self.feedback.items():
+                if atom not in self.capture:
+                    self._fail(f"`feedback` returns '{atom}', which is not a declared capture atom", self.capture)
+                if field not in self.batch:
+                    self._fail(f"`feedback` writes '{field}', which is not a declared batch field", self.batch)
 
     def check_eval(self, in_keys: Iterable[str]) -> None:
         """Every eval ``in`` key is a declared capture atom, target field, meta key, ``log.*`` or ``eval.*`` key."""

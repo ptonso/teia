@@ -106,6 +106,7 @@ def train_project(
 
     _with_dependency_context(config, run_hook_group, config, "pre_build", context)
     train_checkpoint = initial_checkpoint or (config.get("train") or {}).get("resume_from")
+    _load_task_contract(config)
     datamodule_obj = _with_dependency_context(
         config,
         instantiate,
@@ -208,7 +209,15 @@ def _open_snapshot_stage(
     return config, context, selected_checkpoint
 
 
+def _load_task_contract(config: dict[str, Any]) -> None:
+    """Import the task contract before the datamodule is built: creating the class registers the batch fields
+    its collates emit (teia:base/task.md#field-registration)."""
+    if config.get("task"):
+        _with_dependency_context(config, instantiate, config["task"])
+
+
 def _instantiate_stage(config: dict[str, Any], context: dict[str, Any], checkpoint: str | None) -> tuple[Any, Any]:
+    _load_task_contract(config)
     datamodule_obj = _with_dependency_context(
         config,
         instantiate,
