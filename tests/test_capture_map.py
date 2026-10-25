@@ -69,8 +69,11 @@ class CaptureMapTests(unittest.TestCase):
         self.assertEqual(CaptureMap(SOURCES, OUTPUTS, Det()).post_aliases(), {"act"})
         with self.assertRaisesRegex(ValueError, "no activation declares"):
             CaptureMap({"det.scores": "act.logits"}, OUTPUTS, Det())
-        with self.assertRaisesRegex(ValueError, "must be an `act.\\*` or `post"):
-            CaptureMap({"det.scores": "pred.logits"}, OUTPUTS, Det())
+        with self.assertRaisesRegex(ValueError, "must be an `act.\\*`"):
+            CaptureMap({"det.scores": "feat.logits"}, OUTPUTS, Det())
+        with self.assertRaisesRegex(ValueError, "no node produces"):
+            CaptureMap({"det.scores": "pred.logits"}, OUTPUTS, Det(), pred_fields=["pred.other"])
+        CaptureMap({"det.scores": "pred.logits"}, OUTPUTS, Det(), pred_fields=["pred.logits"])
         with self.assertRaisesRegex(ValueError, "not declared by the task contract"):
             CaptureMap({"det.other": "act.probs"}, OUTPUTS, Det())
 

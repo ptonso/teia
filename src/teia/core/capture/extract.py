@@ -28,14 +28,16 @@ class CaptureMap:
         activation_outputs: Mapping[str, str],
         contract: TaskContract | None,
         eval_batch_keys: Iterable[str] = (),
+        pred_fields: Iterable[str] | None = None,
     ) -> None:
-        """``activation_outputs`` maps each ``act.*`` out-key to the activation alias producing it."""
+        """``activation_outputs`` maps each ``act.*`` out-key to the activation alias producing it;
+        ``pred_fields`` (when given) are the forward's ``pred.*`` keys a ``pred.*`` source may name."""
         self.sources = {str(k): str(v) for k, v in capture_map.items()}
         self.activation_outputs = dict(activation_outputs)
         self.contract = contract
         if contract is None:
             self.specs = {
-                atom: Tensor("B *") if source.startswith("act.") else Ragged("N *", index=f"{atom.split('.')[0]}.sample_idx")
+                atom: Tensor("B *") if source.startswith(("act.", "pred.")) else Ragged("N *", index=f"{atom.split('.')[0]}.sample_idx")
                 for atom, source in self.sources.items()
             }
             self.targets = sorted(k.removeprefix("batch.") for k in eval_batch_keys if k.startswith("batch."))
@@ -50,12 +52,19 @@ class CaptureMap:
             if source.startswith("act."):
                 if source not in self.activation_outputs:
                     raise ValueError(f"capture '{atom}: {source}': no activation declares out-key '{source}'.")
+            elif source.startswith("pred."):
+                if pred_fields is not None and source not in set(pred_fields):
+                    raise ValueError(f"capture '{atom}: {source}': no node produces '{source}'.")
+                if not isinstance(self.specs[atom], Tensor):
+                    raise ValueError(f"capture '{atom}: {source}': a `pred.*` source fills a Tensor atom only.")
             elif source.startswith("post."):
                 alias = source.split(".")[1]
                 if alias not in set(self.activation_outputs.values()):
                     raise ValueError(f"capture '{atom}: {source}': '{alias}' is not an activation node.")
             else:
-                raise ValueError(f"capture '{atom}: {source}': a source must be an `act.*` or `post.<alias>.<atom>` key.")
+                raise ValueError(
+                    f"capture '{atom}: {source}': a source must be an `act.*`, `pred.*` or `post.<alias>.<atom>` key."
+                )
 
     def post_aliases(self) -> set[str]:
         """Activation aliases whose ``postprocess`` the map needs."""
@@ -67,6 +76,7 @@ class CaptureMap:
         activated: Mapping[str, Mapping[str, Any]],
         post: Mapping[str, list[dict]],
         batch_keys: Iterable[str] | None = None,
+        pred: Any = None,
     ) -> dict[str, Any]:
         """One step's atoms: ``{"capture.<route>.<atom>": value, "batch.<field>": value}``.
 
@@ -83,6 +93,9 @@ class CaptureMap:
             if source.startswith("act."):
                 value = activated[self.activation_outputs[source]][source.removeprefix("act.")]
                 out[f"capture.{atom}"] = list(_cpu(value)) if isinstance(spec, Blob) else _cpu(value)
+                continue
+            if source.startswith("pred."):
+                out[f"capture.{atom}"] = _cpu(getattr(pred, source.removeprefix("pred.")))
                 continue
             _, alias, name = source.split(".", 2)
             rows = [sample[name] for sample in post[alias]]

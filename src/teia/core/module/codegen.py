@@ -90,13 +90,24 @@ def _in_expr(k: str, detach: set[str]) -> str:
     return f"{expr}.detach()" if k in detach else expr
 
 
-def generate_forward_fn(records: list, pred_fields: list[str]) -> str:
-    """Return source string for _generated_forward(self, batch) -> Pred.
+def slice_records(records: list, roots: set[str]) -> list:
+    """The pipeline records, in order, that transitively produce the ``roots`` keys (the capture slice)."""
+    needed, kept = set(roots), []
+    for rec in reversed(records):
+        if needed & set(rec.out_key or []):
+            kept.append(rec)
+            needed |= {k for k in rec.in_key if not k.startswith("batch.")}
+    return kept[::-1]
+
+
+def generate_forward_fn(records: list, pred_fields: list[str], name: str = "_generated_forward") -> str:
+    """Return source string for ``<name>(self, batch) -> Pred``.
 
     Nodes are **None-tolerant**: a node runs only if at least one of its inputs is non-None,
-    otherwise its outputs are set to None.
+    otherwise its outputs are set to None. A ``pred`` field no listed record produces is ``None``,
+    which is how a capture slice (a pruned record list) fills the fields it skips.
     (see teia:core/module/codegen.md)."""
-    lines = ["def _generated_forward(self, batch):"]
+    lines = [f"def {name}(self, batch):"]
     for rec in records:
         # A 'tied' bind node has no module of its own — it re-applies the source node's module
         # (shared weights) at this call site. 'frozen'/own nodes call their own attribute.
@@ -124,7 +135,8 @@ def generate_forward_fn(records: list, pred_fields: list[str]) -> str:
             none_tuple = "(" + ", ".join("None" for _ in rec.out_key) + ")"
             lines.append(f"    {lhs} = {node_attr}({args}) if ({guard}) else {none_tuple}")
 
-    pred_args = ", ".join(key_to_expr(f) for f in pred_fields)
+    produced = {key for rec in records for key in (rec.out_key or [])}
+    pred_args = ", ".join(key_to_expr(f) if f in produced else "None" for f in pred_fields)
     lines.append(f"    return self._pred_type({pred_args})")
     return "\n".join(lines)
 

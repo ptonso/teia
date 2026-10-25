@@ -6,7 +6,9 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+import torch
 from lightning import LightningModule
+from torch import Tensor
 
 from teia.base.envelope import check_envelope_collision
 from teia.base.envelope import component_config as _object_cfg
@@ -16,6 +18,7 @@ from teia.core.module.codegen import (
     generate_forward_fn,
     generate_losses_fn,
     sanitize_key,
+    slice_records,
     validate_pipeline,
 )
 from teia.core.capture.extract import CaptureMap
@@ -580,7 +583,7 @@ class TeiaNetModule(LightningModule):
         self._pred_type = _make_pred_namedtuple(pred_fields)
 
         validate_pipeline(self._pipeline_records, self._loss_records, self._activation_records)
-        CaptureMap(self._capture_spec, self.activation_outputs(), None)  # fail fast on bad sources
+        CaptureMap(self._capture_spec, self.activation_outputs(), None, pred_fields=pred_fields)  # fail fast on bad sources
         exec_and_bind(
             generate_forward_fn(self._pipeline_records, pred_fields),
             self,
@@ -595,6 +598,20 @@ class TeiaNetModule(LightningModule):
             generate_activation_fn(self._activation_records),
             self,
             "_generated_activation",
+        )
+        self._build_capture_slice()
+
+    def _build_capture_slice(self) -> None:
+        """Generate the forward pruned to what the ``capture:`` map needs (teia:core/module/capture_map.md#capture-slice)."""
+        sources = list(self._capture_spec.values())
+        aliases = {self.activation_outputs()[s] for s in sources if s.startswith("act.")}
+        self._slice_activation_records = [rec for rec in self._activation_records if rec.name in aliases]
+        roots = {k for rec in self._slice_activation_records for k in rec.in_key if k.startswith("pred.")}
+        roots |= {s for s in sources if s.startswith("pred.")}
+        exec_and_bind(
+            generate_forward_fn(slice_records(self._pipeline_records, roots), self._pred_fields, "_generated_act_forward"),
+            self,
+            "_generated_act_forward",
         )
 
     def _build_optimizer_routing(self, raw_optimizers: Any) -> None:
@@ -816,6 +833,32 @@ class TeiaNetModule(LightningModule):
     def forward(self, batch: Any):
         return self._generated_forward(batch)
 
+    def act_forward(self, batch: Any, *, deterministic: bool = False, generator: torch.Generator | None = None) -> dict[str, Tensor]:
+        """Stream-mode acting: run only the capture slice under ``no_grad`` and return ``{atom: tensor}`` on the
+        batch's device. An action activation samples (``deterministic=False``) or acts greedily; others use
+        ``activation``. Needs a ``capture:`` map whose sources are ``act.*`` or ``pred.*``."""
+        if not self._capture_spec:
+            raise ValueError("act_forward needs a `capture:` map on the netmodule.")
+        if any(s.startswith("post.") for s in self._capture_spec.values()):
+            raise ValueError("act_forward cannot serve a `post.*` capture source; postprocess runs host-side.")
+        with torch.no_grad():
+            pred = self._generated_act_forward(batch)
+            produced: dict[str, dict[str, Tensor]] = {}
+            for rec in self._slice_activation_records:
+                node = self._node(rec)
+                logits = [getattr(pred, k.removeprefix("pred.")) for k in rec.in_key if k.startswith("pred.")]
+                if callable(getattr(node, "sample", None)):
+                    produced[rec.name] = node.sample(*logits, deterministic=deterministic, generator=generator)._asdict()
+                else:
+                    produced[rec.name] = node.activation(*logits)
+            outputs = self.activation_outputs()
+            return {
+                atom: produced[outputs[source]][source.removeprefix("act.")]
+                if source.startswith("act.")
+                else getattr(pred, source.removeprefix("pred."))
+                for atom, source in self._capture_spec.items()
+            }
+
     def _node(self, rec: PipelineNodeRecord) -> Any:
         """Fail-fast accessor for a record's built node — post-build it MUST exist."""
         node = getattr(self, sanitize_key(rec.name), None)
@@ -845,7 +888,7 @@ class TeiaNetModule(LightningModule):
             for rec in self._activation_records
             if rec.name in capture.post_aliases()
         }
-        return capture.atoms(batch, activated, post, batch_keys)
+        return capture.atoms(batch, activated, post, batch_keys, pred=pred)
 
     def activate(self, pred: Any) -> dict[str, dict[str, Any]]:
         """Run each activation node's ``activation`` over the ``pred.*`` logits.
