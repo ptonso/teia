@@ -20,9 +20,10 @@ from teia.base.net import TeiaNode
 
 
 class LinearHead(TeiaNode):
-    """Project vector features to the declared output shape."""
+    """Project vector features to the declared output shape. ``init_gain`` sets an orthogonal weight with that gain
+    and a zero bias (a small gain starts a policy mean near zero)."""
 
-    def build_module(self, **kwargs: Any) -> None:
+    def build_module(self, *, init_gain: float | None = None, **kwargs: Any) -> None:
         if self.out_shape is None:
             raise ValueError("LinearHead requires out_shape from node.out_key.")
         if not isinstance(self.in_shape, Sequence) or len(self.in_shape) != 1:
@@ -31,6 +32,9 @@ class LinearHead(TeiaNode):
             raise ValueError(f"LinearHead requires a single output shape, got {self.out_shape!r}.")
         self._out_shape = tuple(int(dim) for dim in self.out_shape)
         self.linear = nn.Linear(int(self.in_shape[0]), int(math.prod(self._out_shape)))
+        if init_gain is not None:
+            nn.init.orthogonal_(self.linear.weight, gain=float(init_gain))
+            nn.init.zeros_(self.linear.bias)
 
     def forward(self, x: Tensor) -> Tensor:
         return self.linear(x).reshape(x.shape[0], *self._out_shape)
