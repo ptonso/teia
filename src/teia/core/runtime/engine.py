@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 import contextlib
 import inspect
 import logging
@@ -966,6 +968,9 @@ def _prepare_datamodule_config(config: dict[str, Any], project_dir: Path, run_di
     if data_root not in (None, "???"):
         if not _callable_accepts_kwarg(target, "data_root"):
             raise ValueError(f"Configured datamodule target {target!r} does not accept `data_root`.")
+        if _WORLD_ID.match(str(data_root)):
+            datamodule_config["data_root"] = str(data_root)
+            return datamodule_config
         resolved_data_root = _resolve_root_value(data_root, project_dir=project_dir)
         if not resolved_data_root.exists():
             raise FileNotFoundError(
@@ -984,6 +989,10 @@ def _prepare_module_config(config: dict[str, Any], checkpoint: str | None) -> An
     if checkpoint:
         return disable_pretrained_loading(module_config)
     return module_config
+
+
+#: ``<scheme>:<id>``: a registered world an engine node resolves itself (teia:core/config.md#data_root).
+_WORLD_ID = re.compile(r"^[a-z][a-z0-9_]*:[^/\\]")
 
 
 def _resolve_root_value(value: Any, project_dir: Path) -> Path:

@@ -1015,6 +1015,21 @@ class RuntimeValidationTests(unittest.TestCase):
             self.assertEqual(prepared["run_dir"], str(root / "run"))
             self.assertEqual(prepared["data_root"], str((root / "datamodule/examples/multi-cls").resolve()))
 
+    def test_a_registered_world_id_passes_through_without_a_path_check(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            prepared = _prepare_datamodule_config(
+                config={"data_root": "isaaclab:Isaac-Cartpole-v0", "datamodule": {"_target_": "teia.core.datamodule.TeiaDataModule"}},
+                project_dir=Path(tmp),
+                run_dir=Path(tmp) / "run",
+            )
+            self.assertEqual(prepared["data_root"], "isaaclab:Isaac-Cartpole-v0")
+            with self.assertRaises(FileNotFoundError):
+                _prepare_datamodule_config(
+                    config={"data_root": "missing_dir", "datamodule": {"_target_": "teia.core.datamodule.TeiaDataModule"}},
+                    project_dir=Path(tmp),
+                    run_dir=Path(tmp) / "run",
+                )
+
     def test_prepare_datamodule_config_rejects_targets_without_data_root_support(self) -> None:
         class LegacyDataModule:
             def __init__(self, root: str = "legacy") -> None:

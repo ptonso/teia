@@ -17,9 +17,7 @@ def validate_composed_config(config: dict[str, Any]) -> None:
     if missing:
         raise ValueError(f"Composed config is missing required top-level groups: {', '.join(missing)}")
 
-    # Streaming datamodules (interactive collects transitions from the environment) carry no dataset
-    # and declare `requires_data_root = False` on their class; everything else needs a root.
-    if _datamodule_requires_data_root(config) and config.get("data_root") in (None, "???"):
+    if config.get("data_root") in (None, "???"):
         raise ValueError("Config data_root is required; configure dataset location at the config root.")
 
     validate_n_runs(config)
@@ -35,18 +33,6 @@ def validate_n_runs(config: dict[str, Any]) -> None:
     n_runs = (config.get("runtime") or {}).get("n_runs", 1)
     if isinstance(n_runs, bool) or not isinstance(n_runs, int) or n_runs < 1:
         raise ValueError(f"runtime.n_runs must be an integer of at least 1, got {n_runs!r}.")
-
-
-def _datamodule_requires_data_root(config: dict[str, Any]) -> bool:
-    """Whether the datamodule needs a dataset root.
-
-    A datamodule with an engine node (stream mode) collects transitions from a simulator and carries no
-    dataset; every other (offline) datamodule needs a root.
-    """
-    from teia.core.datamodule.graph import discover_node_entries, parse_node
-
-    entries = discover_node_entries(dict(config.get("datamodule") or {}))
-    return not any(parse_node(name, entry).kind == "engine" for name, entry in entries)
 
 
 def _reject_legacy_data_contract(config: dict[str, Any]) -> None:
