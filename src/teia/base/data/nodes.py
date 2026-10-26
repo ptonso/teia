@@ -154,6 +154,9 @@ class Engine(IoNode):
     data_root: Any = None
     """The world: an assets folder or ``<scheme>:<id>``, injected from the config's ``data_root``."""
 
+    device: Any = "cpu"
+    """The device of the engine's tensors; commands open on it so their values mix with the signals."""
+
     @abstractmethod
     def open(self, seed: int) -> None:
         """Build the simulator once per process (lazy, idempotent) and validate ``signals``."""
@@ -210,7 +213,7 @@ class Command(IoNode, ABC):
     engine: Any = None
 
     @abstractmethod
-    def open(self, seed: int, num_envs: int) -> None: ...
+    def open(self, seed: int, num_envs: int, device: Any) -> None: ...
 
     @abstractmethod
     def reset(self, mask: Any) -> None: ...

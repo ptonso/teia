@@ -409,7 +409,7 @@ class TeiaDataModule(LightningDataModule):
             engine.open(engine.seed)
             num_envs = engine.spec().num_envs
             for rec in self._command_records:
-                self._nodes[rec.name].open(engine.seed, num_envs)
+                self._nodes[rec.name].open(engine.seed, num_envs, torch.device(engine.device))
         else:
             for split in _SPLITS:
                 self._seeds_for(split)

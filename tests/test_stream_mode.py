@@ -220,8 +220,8 @@ def _command_dm():
         def __init__(self) -> None:
             self.calls: list[str] = []
 
-        def open(self, seed: int, num_envs: int) -> None:
-            self.value = torch.zeros(num_envs)
+        def open(self, seed: int, num_envs: int, device: torch.device) -> None:
+            self.value = torch.zeros(num_envs, device=device)
 
         def reset(self, mask: torch.Tensor) -> None:
             self.calls.append("reset")
