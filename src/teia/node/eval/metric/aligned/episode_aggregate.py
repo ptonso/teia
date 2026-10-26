@@ -7,7 +7,8 @@ Description:
   Groups captured per-step rows by ``episode_id`` and keeps the episodes that ended, those with a
   ``terminated`` or ``truncated`` row. Episodes still running when the capture stopped are
   dropped. ``terminated_rate`` is the fraction of ended episodes that reached a terminal state
-  rather than a time limit. A terminal state is success in a goal-reaching env and failure in a
+  rather than a time limit. A capture with no ended episode (a dry run's single step) reports zero episodes and NaN
+  statistics. A terminal state is success in a goal-reaching env and failure in a
   balancing one, and the capture carries no success signal, so no success rate is reported.
 """
 
@@ -33,7 +34,8 @@ class EpisodeAggregate(Metric):
         episode_id = np.asarray(episode_id).reshape(-1)
         masks = {int(episode): episode_id == episode for episode in np.unique(episode_id[ended])}
         if not masks:
-            raise ValueError("no captured episode ended; the capture holds partial episodes only.")
+            nan = float("nan")
+            return {"episodes": 0, "episode_return": nan, "episode_return_std": nan, "episode_length": nan, "terminated_rate": nan, "rows": []}
         rows = [
             {
                 "episode_id": episode,

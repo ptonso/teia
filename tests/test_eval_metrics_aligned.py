@@ -365,9 +365,9 @@ class TestEpisodeAggregate:
         assert result["terminated_rate"] == pytest.approx(0.5)
         assert [row["episode_id"] for row in result["rows"]] == [0, 1]
 
-    def test_no_ended_episode_is_rejected(self) -> None:
-        with pytest.raises(ValueError, match="ended"):
-            EpisodeAggregate().from_source(None, reward=[1.0], terminated=[0], truncated=[0], episode_id=[0])
+    def test_no_ended_episode_reports_zero_episodes(self) -> None:
+        result = EpisodeAggregate().from_source(None, reward=[1.0], terminated=[0], truncated=[0], episode_id=[0])
+        assert result["episodes"] == 0 and result["rows"] == []
 
 
 if __name__ == "__main__":

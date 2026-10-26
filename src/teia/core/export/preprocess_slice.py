@@ -102,6 +102,10 @@ def resolve_data_graph_chain(datamodule: Any, field: str) -> tuple[list[Preproce
                 f"data node {current!r} has {len(rec.in_key)} input keys and does not rewrite {key!r}; "
                 "export chains support single-input preprocess nodes (or in-place rewrites) only."
             )
+        if upstream_key not in producers.final_producer:
+            # a key the stream-mode runner supplies (a successor, a fed-back field): the chain ends here
+            steps.reverse()
+            return steps, upstream_key.split(".", 1)[1], dict(_VALUE_PAYLOAD)
         current = producers.producer_of(current, key) if upstream_key == key else producers.final_producer[upstream_key]
         key = upstream_key
 

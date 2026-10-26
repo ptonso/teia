@@ -177,3 +177,20 @@ def test_eval_runs_on_the_open_engine_deterministically_and_leaves_training_stat
     assert node.params()["mean"] == seen and node.training is True
     assert all(b.s_epi.shape == (3,) for b in batches)
     assert sum(int(b.s_term.sum()) for b in batches) >= 3
+
+
+def test_an_export_chain_ends_at_a_key_the_runner_supplies():
+    from teia.core.export.preprocess_slice import resolve_data_graph_chain
+
+    dm = _dm()
+    steps, payload_key, _ = resolve_data_graph_chain(dm, "s_next")
+    assert payload_key == "next_obs" and [s.owner for s in steps] == ["Stack"]
+
+
+def test_an_episode_aggregate_over_a_capture_with_no_ended_episode_reports_zero():
+    import numpy as np
+
+    from teia.node.eval.metric.aligned.episode_aggregate import EpisodeAggregate
+
+    out = EpisodeAggregate().from_source(None, reward=np.ones(2), terminated=np.zeros(2), truncated=np.zeros(2), episode_id=np.zeros(2))
+    assert out["episodes"] == 0 and out["rows"] == []
