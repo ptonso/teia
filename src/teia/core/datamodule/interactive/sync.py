@@ -27,7 +27,7 @@ class SyncRunner(Runner):
             raise ValueError("a stream-mode datamodule declares a `stage: stream` buffer node (reshape).")
         buffer.configure(num_envs=ctx.num_envs, generator=ctx.generator)
         ctx.dm._set_training(ctx.training)
-        self._cycle = cycle = Cycle(ctx, deterministic=False, return_key=self.return_key, episode_id=self.episode_id)
+        self._cycle = cycle = Cycle(ctx, deterministic=False)
         rollout = callable(getattr(buffer, "finalize_rollout", None))
         while cycle.env_steps < self.total_env_steps:
             buffer.add(cycle.step())
@@ -38,7 +38,7 @@ class SyncRunner(Runner):
                     yield ctx.dm._collate_fn(minibatch)
                 buffer.on_consumed()
 
-    def drain_episodes(self) -> list[tuple[float, int]]:
+    def drain_episodes(self) -> list[dict[str, Any]]:
         cycle = getattr(self, "_cycle", None)
         return [] if cycle is None else cycle.drain_episodes()
 

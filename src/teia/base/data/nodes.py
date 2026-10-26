@@ -1,6 +1,6 @@
 """IO-node contracts — the data-plane analog of ``teia.base.net.TeiaNode``.
 
-Seven atomic node kinds (``Reader``/``Engine``/``Transform``/``Join``/``Reshape``/``Collate``/``Writer``) wired by
+Eight atomic node kinds (``Reader``/``Engine``/``Command``/``Transform``/``Join``/``Reshape``/``Collate``/``Writer``) wired by
 ``in_key``/``out_key`` over the io workspace (``stream.*`` → ``item.*`` → ``batch.*``). ``teia.base`` owns
 only the ABCs, the phase/stage vocabulary, and the key typing; concrete components live in
 ``teia.node.data.*``. See teia:base/data/nodes.md.
@@ -14,11 +14,11 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from math import prod
-from typing import Any, Callable, ClassVar, Literal, NamedTuple, get_args
+from typing import Any, Callable, ClassVar, Literal, Protocol, get_args
 
 Phase = Literal["source", "preprocess", "augment", "target", "collate", "writer"]
 Stage = Literal["plan", "item", "stream", "batch"]
-Kind = Literal["read", "engine", "transform", "join", "reshape", "collate", "write"]
+Kind = Literal["read", "engine", "command", "transform", "join", "reshape", "collate", "write"]
 
 PHASES: frozenset[str] = frozenset(get_args(Phase))
 STAGES: frozenset[str] = frozenset(get_args(Stage))
@@ -29,6 +29,7 @@ STAGE_RANK: dict[Stage, int] = {"plan": 0, "item": 1, "stream": 1, "batch": 2}
 _DEFAULT_PHASE: dict[Kind, Phase] = {
     "read": "source",
     "engine": "source",
+    "command": "preprocess",
     "transform": "preprocess",
     "join": "target",
     "reshape": "preprocess",
@@ -38,6 +39,7 @@ _DEFAULT_PHASE: dict[Kind, Phase] = {
 _DEFAULT_STAGE: dict[Kind, Stage] = {
     "read": "plan",
     "engine": "stream",
+    "command": "stream",
     "transform": "item",
     "join": "plan",
     "reshape": "plan",
@@ -137,28 +139,24 @@ class EngineSpec:
     num_actions: int | None = None
 
 
-class EngineStep(NamedTuple):
-    """One transition for all environments, in same-step form. ``next`` and ``end`` hold one tensor per
-    engine ``out`` key; ``end`` equals ``next`` except where ``boundary`` is true, where it holds the
-    pre-reset final values."""
-
-    next: tuple[Any, ...]
-    end: tuple[Any, ...]
-    boundary: Any
-
-
 class Engine(IoNode):
     """Output-only live source of a stream-mode datamodule. It owns one simulator for the process, takes no
-    ``in`` and is driven by the runner. Its ``out`` names its outputs positionally; the docstring states the order.
-    See teia:base/data/nodes.md."""
+    ``in`` and is driven by the runner. Its ``out`` maps item keys to signal names; the datamodule injects the
+    names as ``signals`` (one per ``out_key``, same order). See teia:base/data/nodes.md#engine."""
 
     log_path: Any = None
     """Where the engine writes the simulator's own console output (``<run_dir>/engine/<node>.log``), injected by the
     datamodule; ``None`` leaves it on the console. An engine routes noisy simulator output here so the console holds Teia's logs."""
 
+    signals: list[str]
+    """The signal name behind each ``out_key``, injected by the datamodule. The engine validates them at ``open``."""
+
+    data_root: Any = None
+    """The world: an assets folder or ``<scheme>:<id>``, injected from the config's ``data_root``."""
+
     @abstractmethod
     def open(self, seed: int) -> None:
-        """Build the simulator once per process (lazy, idempotent)."""
+        """Build the simulator once per process (lazy, idempotent) and validate ``signals``."""
 
     @abstractmethod
     def close(self) -> None: ...
@@ -167,11 +165,15 @@ class Engine(IoNode):
     def spec(self) -> EngineSpec: ...
 
     @abstractmethod
-    def reset(self) -> tuple[Any, ...]:
-        """One tensor per ``out`` key, leading axis ``num_envs``."""
+    def reset(self, mask: Any = None) -> tuple[Any, ...]:
+        """Reset every environment, or those in the bool ``mask`` ``[num_envs]``. One tensor per ``out`` key,
+        leading axis ``num_envs``: the state signals of the world after the reset (unmasked environments keep
+        their state); outcome entries are unspecified."""
 
     @abstractmethod
-    def step(self, action: Any) -> EngineStep: ...
+    def step(self, action: Any) -> tuple[Any, ...]:
+        """Advance every environment one step. One tensor per ``out`` key at the end of the transition; nothing
+        is reset."""
 
     def render(self) -> Any | None:
         return None
@@ -189,6 +191,36 @@ class Engine(IoNode):
         else:
             dims["action_dim"] = prod(spec.action_shape)
         return dims
+
+
+class Episodic(Protocol):
+    """Per-environment state the stream cycle resets and advances (teia:base/data/nodes.md#command)."""
+
+    def reset(self, mask: Any) -> None:
+        """Redraw the state of the environments in the bool ``mask`` ``[num_envs]``."""
+
+    def advance(self) -> None:
+        """One environment step passed: timers tick and due state is redrawn."""
+
+
+class Command(IoNode, ABC):
+    """Per-environment target drawn by Teia (a goal). It reads only its own state inside a pass and changes it in
+    ``reset`` and ``advance``. ``engine`` is the injected engine instance when the node sets ``engine: <name>``."""
+
+    engine: Any = None
+
+    @abstractmethod
+    def open(self, seed: int, num_envs: int) -> None: ...
+
+    @abstractmethod
+    def reset(self, mask: Any) -> None: ...
+
+    @abstractmethod
+    def advance(self) -> None: ...
+
+    @abstractmethod
+    def __call__(self, *inputs: Any) -> Any:
+        """The current value per environment, leading axis ``num_envs``."""
 
 
 class Transform(IoNode):

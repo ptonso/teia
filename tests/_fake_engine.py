@@ -1,64 +1,53 @@
-"""Test-local engine: environment ``i`` ends its episode after ``length + i`` steps and reports same-step.
+"""Test-local engine: environment ``i`` ends its episode after ``length + i`` steps and never resets itself.
 
-Emits, in order: ``obs`` (``[num_envs, 2]``, both columns the step counter), ``reward`` (the first action
-component, zero for an idle environment), ``terminated``, ``truncated`` and, under ``all_done``, ``valid``
-(false for an environment idling since it finished). ``end`` holds the final counter of a finished environment
-where ``next`` holds its reset value 0.
+Signals: ``obs`` (``[num_envs, 2]``, both columns the step counter), ``reward`` (the first action component),
+``terminated`` (the counter reached the environment's length) and ``truncated`` (never). ``reset(mask)`` zeroes the
+counters of the masked environments, so a finished environment's final counter is visible until the runner resets it.
 """
 
 from __future__ import annotations
 
 import torch
 
-from teia.base.data import Engine, EngineSpec, EngineStep
+from teia.base.data import Engine, EngineSpec
+
+_SIGNALS = {"obs": ((2,), "float32", "state"), "reward": ((), "float32", "outcome"), "terminated": ((), "bool", "outcome"), "truncated": ((), "bool", "outcome")}
 
 
 class FakeEngine(Engine):
-    def __init__(self, num_envs: int = 3, length: int = 3, reset_policy: str = "per_env") -> None:
-        self.num_envs, self.length, self.reset_policy = num_envs, length, reset_policy
+    def __init__(self, num_envs: int = 3, length: int = 3) -> None:
+        self.num_envs, self.length = num_envs, length
         self.opened = 0
         self._t: torch.Tensor | None = None
 
     seed = 0
 
     def open(self, seed: int) -> None:
+        unknown = [s for s in self.signals if s not in _SIGNALS]
+        if unknown:
+            raise ValueError(f"unknown signal(s) {unknown}")
         if self._t is not None:
             return
         self.opened += 1
         self._t = torch.zeros(self.num_envs)
-        self._idle = torch.zeros(self.num_envs, dtype=torch.bool)
         self._lens = self.length + torch.arange(self.num_envs)
 
     def close(self) -> None:
         self._t = None
 
     def spec(self) -> EngineSpec:
-        outputs = [((2,), "float32", "state"), ((), "float32", "outcome"), ((), "bool", "outcome"), ((), "bool", "outcome")]
-        if self.reset_policy == "all_done":
-            outputs.append(((), "bool", "outcome"))
-        return EngineSpec(self.num_envs, tuple(outputs), (1,), "float32", -1.0, 1.0)
+        return EngineSpec(self.num_envs, tuple(_SIGNALS[s] for s in self.signals), (1,), "float32", -1.0, 1.0)
 
-    def _pack(self, obs_t, reward, terminated, truncated, valid):
-        out = (obs_t.unsqueeze(1).repeat(1, 2), reward, terminated, truncated)
-        return out + (valid,) if self.reset_policy == "all_done" else out
+    def _signals(self, reward: torch.Tensor) -> tuple[torch.Tensor, ...]:
+        done = self._t >= self._lens
+        values = {"obs": self._t.clone().unsqueeze(1).repeat(1, 2), "reward": reward, "terminated": done, "truncated": torch.zeros_like(done)}
+        return tuple(values[s] for s in self.signals)
 
-    def reset(self):
-        self._t.zero_()
-        self._idle.zero_()
-        zeros = torch.zeros(self.num_envs)
-        return self._pack(self._t.clone(), zeros, zeros.bool(), zeros.bool(), ~self._idle)
+    def reset(self, mask: torch.Tensor | None = None) -> tuple[torch.Tensor, ...]:
+        self.open(self.seed)
+        self._t = torch.zeros_like(self._t) if mask is None else torch.where(mask, torch.zeros_like(self._t), self._t)
+        return self._signals(torch.zeros(self.num_envs))
 
-    def step(self, action: torch.Tensor) -> EngineStep:
-        active = ~self._idle
-        t_end = torch.where(active, self._t + 1, self._t)
-        done = active & (t_end >= self._lens)
-        reward = action[:, 0].float() * active
-        end = self._pack(t_end.clone(), reward, done, torch.zeros_like(done), active)
-        if self.reset_policy == "per_env":
-            self._t = torch.where(done, torch.zeros_like(t_end), t_end)
-        else:
-            self._t, self._idle = t_end, self._idle | done
-            if self._idle.all():
-                self._t, self._idle = torch.zeros_like(t_end), torch.zeros_like(self._idle)
-        nxt = self._pack(self._t.clone(), reward, done, torch.zeros_like(done), ~self._idle)
-        return EngineStep(nxt, end, done)
+    def step(self, action: torch.Tensor) -> tuple[torch.Tensor, ...]:
+        self._t = self._t + 1
+        return self._signals(action[:, 0].float())

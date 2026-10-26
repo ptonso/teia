@@ -6,6 +6,7 @@ from teia.base.data import Engine, Transform
 from _fake_engine import FakeEngine
 
 _ENGINE = "_fake_engine.FakeEngine"
+OUT = {"item.obs": "obs", "item.reward": "reward", "item.terminated": "terminated", "item.truncated": "truncated"}
 
 
 class Passthrough(Transform):
@@ -13,22 +14,22 @@ class Passthrough(Transform):
         return value
 
 
-def test_an_engine_is_a_stream_source_and_names_its_outputs_positionally():
-    records = build_graph([("env", {"_target_": _ENGINE, "out": ["item.obs", "item.reward", "item.terminated", "item.truncated"]})])
+def test_an_engine_is_a_stream_source_and_maps_its_outputs_to_signals():
+    records = build_graph([("env", {"_target_": _ENGINE, "out": OUT})])
     (env,) = records
     assert (env.kind, env.phase, env.stage) == ("engine", "source", "stream")
-    assert env.in_key == [] and env.out_key[0] == "item.obs"
+    assert env.in_key == [] and env.out_key[0] == "item.obs" and env.signals[0] == "obs"
 
 
 def test_an_engine_takes_no_input():
     with pytest.raises(ValueError, match="output-only"):
-        build_graph([("env", {"_target_": _ENGINE, "in": "item.x", "out": ["item.obs"]})])
+        build_graph([("env", {"_target_": _ENGINE, "in": "item.x", "out": {"item.obs": "obs"}})])
 
 
 def test_a_mapping_in_binds_roles_and_orders_the_dependencies():
     records = build_graph(
         [
-            ("env", {"_target_": _ENGINE, "out": ["item.obs", "item.reward", "item.terminated", "item.truncated"]}),
+            ("env", {"_target_": _ENGINE, "out": OUT}),
             ("norm", {"_target_": "test_engine_graph.Passthrough", "in": {"value": "item.obs"}, "out": "item.obs_n"}),
         ]
     )
@@ -39,6 +40,7 @@ def test_a_mapping_in_binds_roles_and_orders_the_dependencies():
 def test_engine_dims_follow_the_out_keys_and_the_action_spec():
     engine = FakeEngine()
     engine.out_key = ["item.obs_state", "item.reward", "item.terminated", "item.truncated"]
+    engine.signals = ["obs", "reward", "terminated", "truncated"]
     assert engine.runtime_dims() == {
         "obs_state_shape": (2,),
         "obs_state_dim": 2,

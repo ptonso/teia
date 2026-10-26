@@ -187,7 +187,7 @@ def parse_eval_node(name: str, entry: Mapping[str, Any]) -> EvalNodeRecord:
 def _resolve_eval_deps(records: list[EvalNodeRecord]) -> dict[str, set[str]]:
     """Per-node dependency sets, built from ``producer_map``.
 
-    ``capture.*``/``batch.*``/``meta.*``/``log.*`` keys are exempt from producer resolution: they are read
+    ``capture.*``/``batch.*``/``meta.*``/``log.*``/``episodes.*`` keys are exempt from producer resolution: they are read
     from the ``EvalSource``, not produced by any graph node. This mirrors the data graph's
     ``ctx.*`` exemption in ``teia.core.datamodule.graph._resolve_deps``.
     """
@@ -195,7 +195,7 @@ def _resolve_eval_deps(records: list[EvalNodeRecord]) -> dict[str, set[str]]:
     deps: dict[str, set[str]] = {rec.name: set() for rec in records}
     for rec in records:
         for key in rec.in_key:
-            if key.startswith(("capture.", "batch.", "meta.", "log.")):
+            if key.startswith(("capture.", "batch.", "meta.", "log.", "episodes.")):
                 continue
             if key not in producers.producers_by_key:
                 raise ValueError(f"eval node '{rec.name}': in_key '{key}' is not produced by any node's out_key.")

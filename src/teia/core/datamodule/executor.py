@@ -123,6 +123,7 @@ class TeiaDataModule(LightningDataModule):
         self.pin_memory = pin_memory
         self.drop_last = drop_last
         self.data_root = data_root
+        self.run_dir = run_dir
         self.project_dir = project_dir
         self.image_size = image_size
         self.pixel_norm = pixel_norm
@@ -149,10 +150,17 @@ class TeiaDataModule(LightningDataModule):
             node.in_roles = rec.in_roles
             if rec.kind == "engine":
                 node.log_path = Path(run_dir) / "engine" / f"{rec.name}.log" if run_dir else None
+                node.signals = rec.signals
             for attr in _SHARED_NODE_ATTRS:
                 if hasattr(node, attr) and getattr(node, attr, None) is None:
                     setattr(node, attr, shared[attr])
             self._nodes[rec.name] = node
+
+        for rec in self._records:
+            if rec.engine_ref is not None:
+                if rec.engine_ref not in self._nodes or self._nodes[rec.engine_ref] is not self._engine_node_or_none():
+                    raise ValueError(f"data node '{rec.name}': `engine: {rec.engine_ref}` must name the graph's engine node.")
+                self._nodes[rec.name].engine = self._nodes[rec.engine_ref]
 
         self._readers = [r for r in self._records if r.kind == "read"]
         if self._live and self._readers:
@@ -194,6 +202,8 @@ class TeiaDataModule(LightningDataModule):
         self._plan_reshape_records = [r for r in self._records if r.stage == "plan" and r.kind == "reshape"]
         self._writer_records = [r for r in self._records if r.kind == "write"]
         self._item_records = [r for r in self._records if r.stage == "item" and r.kind not in {"collate", "write"}]
+        self._command_records = [r for r in self._records if r.kind == "command"]
+        self._pass_records = [r for r in self._records if r in self._item_records or r.kind == "command"]
         #: Train-only stochastic augments (phase ``augment``); rewrites, so skipping them on eval leaves
         #: the deterministic letterbox values in place for the downstream (raster/collate) consumers.
         self._augment_records = [r for r in self._item_records if r.phase == "augment"]
@@ -251,13 +261,18 @@ class TeiaDataModule(LightningDataModule):
     # -- stream mode: contract, module, engine -----------------------------------------
     def bind_contract(self, contract: Any) -> None:
         """The task contract whose ``feedback`` map names the atoms the runner writes back into rows. The keys no node
-        produces must be ones the runner supplies: a fed-back field, an ``item.next_<K>`` successor or the episode id."""
+        produces must be ones the runner supplies: a fed-back field, an ``item.next_<K>`` successor, the episode id or the
+        ``valid`` mask."""
         self._contract = contract
         if self._live and contract is not None:
             produced = {key for rec in self._records for key in rec.out_key}
             supplied = {f"item.{field}" for field in contract.feedback.values()}
             supplied |= {key.replace("item.", "item.next_", 1) for key in produced}
-            supplied |= {self._runner.episode_id}
+            supplied |= {self._runner.episode_id, self._runner.valid}
+            read = [*self._runner.boundary, *self._runner.episode_sums]
+            absent = sorted(key for key in read if key not in produced)
+            if absent:
+                raise ValueError(f"runner.boundary and runner.episode_sums read {absent}, which no node produces.")
             missing = sorted(unproduced_keys(self._records) - supplied)
             if missing:
                 raise ValueError(f"data graph reads {missing}, which no node produces and the runner does not supply.")
@@ -283,6 +298,22 @@ class TeiaDataModule(LightningDataModule):
     @property
     def _engine_node(self) -> Any:
         return self._nodes[self._engine_rec.name]
+
+    def _engine_node_or_none(self) -> Any:
+        return None if self._engine_rec is None else self._nodes.get(self._engine_rec.name)
+
+    def _episodic_nodes(self) -> list[Any]:
+        """Commands and every item transform that implements ``reset(mask)`` and ``advance()``."""
+        nodes = [self._nodes[r.name] for r in self._pass_records]
+        return [n for n in nodes if callable(getattr(n, "reset", None)) and callable(getattr(n, "advance", None))]
+
+    def _episodic_reset(self, mask: torch.Tensor) -> None:
+        for node in self._episodic_nodes():
+            node.reset(mask)
+
+    def _episodic_advance(self) -> None:
+        for node in self._episodic_nodes():
+            node.advance()
 
     # -- stream (live) graph accessors ---------------------------------------------
     def _stream_reshape_node(self) -> Any | None:
@@ -312,7 +343,7 @@ class TeiaDataModule(LightningDataModule):
     def _stream_pass(self, seed: dict[str, Any], phases: frozenset[str]) -> dict[str, Any]:
         """The toposorted item subgraph filtered to ``phases``; a node runs when all its inputs are present."""
         workspace: dict[str, Any] = dict(seed)
-        for rec in self._item_records:
+        for rec in self._pass_records:
             if rec.phase in phases and all(k in workspace for k in rec.in_key):
                 _assign(workspace, rec.out_key, self._call(rec, workspace))
         return workspace
@@ -374,7 +405,11 @@ class TeiaDataModule(LightningDataModule):
         if self._planned:
             return
         if self._live:
-            self._engine_node.open(self._engine_node.seed)
+            engine = self._engine_node
+            engine.open(engine.seed)
+            num_envs = engine.spec().num_envs
+            for rec in self._command_records:
+                self._nodes[rec.name].open(engine.seed, num_envs)
         else:
             for split in _SPLITS:
                 self._seeds_for(split)

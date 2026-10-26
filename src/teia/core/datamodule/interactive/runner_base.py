@@ -19,10 +19,6 @@ import torch
 
 from teia.base.interactive.policy import PolicyAdapter
 
-#: The captured atom the runner sends to the engine; a task contract with a ``feedback`` map captures it.
-ACTION_ATOM = "policy.action"
-
-
 @dataclass(frozen=True)
 class RunnerContext:
     """Everything a Runner needs to drive one stage. ``feedback`` maps each fed-back capture atom to the
@@ -33,8 +29,12 @@ class RunnerContext:
     buffer: Any | None
     adapter: PolicyAdapter
     feedback: dict[str, str]
+    engine_atom: str
+    boundary: list[str]
+    reset_policy: str
+    valid: str | None
     episode_id: str | None
-    return_key: str | None
+    episode_sums: list[str]
     num_envs: int
     device: torch.device
     generator: torch.Generator
@@ -43,16 +43,33 @@ class RunnerContext:
 
 class Runner(ABC):
     """Owns the collect↔train coupling. Config: ``total_env_steps`` (the training budget), ``eval_episodes``,
-    ``episode_id`` (item key the runner writes episode ids under) and ``return_key`` (item key whose per-step
-    values sum into the episode return reported by ``metrics()``)."""
+    ``boundary`` (item keys whose OR ends an episode), ``reset_policy`` (``per_env`` | ``all_done``), ``valid``
+    (item key the runner writes the live-environment mask under, required by ``all_done``), ``episode_id`` (item key
+    the runner writes episode ids under) and ``episode_sums`` (item keys whose per-step values sum into each ended
+    episode's record)."""
 
     def __init__(
-        self, *, total_env_steps: int, eval_episodes: int = 10, episode_id: str | None = None, return_key: str | None = None
+        self,
+        *,
+        total_env_steps: int,
+        boundary: list[str],
+        eval_episodes: int = 10,
+        reset_policy: str = "per_env",
+        valid: str | None = None,
+        episode_id: str | None = None,
+        episode_sums: list[str] = (),
     ) -> None:
+        if reset_policy not in ("per_env", "all_done"):
+            raise ValueError(f"runner.reset_policy must be per_env or all_done; got {reset_policy!r}")
+        if reset_policy == "all_done" and valid is None:
+            raise ValueError("runner.reset_policy all_done needs `valid`: the item key the live mask is written under.")
+        if not boundary:
+            raise ValueError("runner.boundary lists the item keys whose OR ends an episode.")
         self.total_env_steps = int(total_env_steps)
         self.eval_episodes = int(eval_episodes)
+        self.boundary, self.reset_policy, self.valid = [str(k) for k in boundary], reset_policy, valid
         self.episode_id = episode_id
-        self.return_key = return_key
+        self.episode_sums = [str(k) for k in episode_sums]
 
     def configure(self, ctx: RunnerContext) -> None:
         """Bind the runtime context. Called once per fit."""
@@ -77,6 +94,6 @@ class Runner(ABC):
         """Runner diagnostics: episode statistics since the last call and the buffer's own metrics."""
         return {}
 
-    def drain_episodes(self) -> list[tuple[float, int]]:
-        """``(return, length)`` of the episodes that ended since the last call (return is 0 without a ``return_key``)."""
+    def drain_episodes(self) -> list[dict[str, Any]]:
+        """Records of the episodes that ended since the last call: ``{"sums": {key: float}, "length": int, "ended_by": int}``."""
         return []

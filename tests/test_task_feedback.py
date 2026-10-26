@@ -11,6 +11,7 @@ class Continuous(TaskContract):
     meta = {"obs_dim": Dim()}
     batch = {"fb_obs": Tensor("B *"), "fb_action": Tensor("B *"), "fb_reward": Tensor("B *", target=True)}
     capture = {"policy.action": Tensor("B *"), "policy.value": Tensor("B")}
+    engine_atom = "policy.action"
     feedback = {"policy.action": "fb_action", "policy.value": "fb_reward"}
 
 
@@ -25,12 +26,17 @@ def test_core_vocabulary_names_no_rl_field():
     assert out.strip() == "[]"
 
 
-def test_feedback_must_return_the_policy_action():
-    class NoAction(Continuous):
+def test_the_engine_atom_must_be_a_captured_atom_and_need_not_be_fed_back():
+    class NotCaptured(Continuous):
+        engine_atom = "policy.env_action"
+
+    class NotFedBack(Continuous):
         feedback = {"policy.value": "fb_reward"}
 
-    with pytest.raises(TaskContractError, match="policy.action"):
-        NoAction().check_net(["batch.fb_obs"], {"policy.action": "act.action", "policy.value": "pred.value"})
+    capture_map = {"policy.action": "act.action", "policy.value": "pred.value"}
+    with pytest.raises(TaskContractError, match="engine_atom"):
+        NotCaptured().check_net(["batch.fb_obs"], capture_map)
+    NotFedBack().check_net(["batch.fb_obs"], capture_map)
 
 
 def test_feedback_atoms_and_fields_must_be_declared():

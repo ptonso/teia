@@ -27,6 +27,7 @@ ENVELOPE_KEYS: frozenset[str] = frozenset(
         "aux_in",
         "last_layer",
         "bind",
+        "engine",
     }
 )
 

@@ -20,6 +20,7 @@ from teia.base.data import (
     STAGE_RANK,
     STAGES,
     Collate,
+    Command,
     Engine,
     Join,
     Kind,
@@ -40,6 +41,7 @@ _KIND_BY_BASE: list[tuple[type, Kind]] = [
     (Writer, "write"),
     (Reader, "read"),
     (Engine, "engine"),
+    (Command, "command"),
     (Join, "join"),
     (Reshape, "reshape"),
     (Transform, "transform"),
@@ -78,6 +80,10 @@ class IoNodeRecord:
     field: str | None = None
     in_roles: dict[str, str] | None = None
     """Set when ``in`` is a ``{role: key}`` mapping: the node binds each key by role name, and ``in_key`` lists the keys."""
+    signals: list[str] | None = None
+    """An engine's ``out`` is a ``{item key: signal name}`` mapping: ``signals`` lists the names in ``out_key`` order."""
+    engine_ref: str | None = None
+    """The engine node a node reads (``engine: <name>``); the datamodule injects that instance."""
 
 
 def _normalize_keys(raw: Any, *, name: str, which: str) -> list[str]:
@@ -119,7 +125,7 @@ def _infer_kind(cls: type, *, name: str) -> Kind:
             return kind
     raise ValueError(
         f"data node '{name}': {cls.__module__}.{cls.__qualname__} is not a "
-        "Reader/Engine/Transform/Join/Reshape/Collate/Writer subclass."
+        "Reader/Engine/Command/Transform/Join/Reshape/Collate/Writer subclass."
     )
 
 
@@ -152,6 +158,10 @@ def parse_node(name: str, entry: Mapping[str, Any]) -> IoNodeRecord:
     in_key = list(in_roles.values()) if in_roles is not None else _normalize_keys(raw_in, name=name, which="in")
     if kind == "engine" and in_key:
         raise ValueError(f"data node '{name}': an engine is output-only and takes no `in`.")
+    raw_out = entry.get("out")
+    signals = [str(v) for v in raw_out.values()] if kind == "engine" and isinstance(raw_out, Mapping) else None
+    if kind == "engine" and signals is None:
+        raise ValueError(f"data node '{name}': an engine's `out` is a mapping {{item key: signal name}}.")
     field: str | None = None
     if kind == "collate":
         if len(out_key) != 1 or not out_key[0].startswith("batch."):
@@ -168,6 +178,8 @@ def parse_node(name: str, entry: Mapping[str, Any]) -> IoNodeRecord:
         stage=stage,
         field=field,
         in_roles=in_roles,
+        signals=signals,
+        engine_ref=str(entry["engine"]) if entry.get("engine") is not None else None,
     )
 
 

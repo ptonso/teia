@@ -41,7 +41,7 @@ class AsyncRunner(Runner):
             raise ValueError("AsyncRunner requires an off-policy buffer (replay); a rollout buffer needs SyncRunner.")
         ctx.buffer.configure(num_envs=ctx.num_envs, generator=ctx.generator)
         ctx.dm._set_training(ctx.training)
-        self._cycle = Cycle(ctx, deterministic=False, return_key=self.return_key, episode_id=self.episode_id)
+        self._cycle = Cycle(ctx, deterministic=False)
         yield from (self._inline() if self._parallel == "inline" else self._threaded())
 
     def _collect_once(self) -> None:
@@ -104,7 +104,7 @@ class AsyncRunner(Runner):
             thread.join(timeout=5.0)
         self._thread = None
 
-    def drain_episodes(self) -> list[tuple[float, int]]:
+    def drain_episodes(self) -> list[dict[str, Any]]:
         cycle = getattr(self, "_cycle", None)
         if cycle is None:
             return []

@@ -70,6 +70,7 @@ class TaskContract:
     meta: ClassVar[dict[str, MetaSpec]] = {}
     batch: ClassVar[dict[str, Spec]] = {}
     capture: ClassVar[dict[str, Spec]] = {}
+    engine_atom: ClassVar[str | None] = None
     feedback: ClassVar[dict[str, str]] = {}
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -97,9 +98,9 @@ class TaskContract:
         missing = sorted(set(self.capture) - self.derived() - set(capture_map))
         if missing:
             self._fail(f"netmodule `capture:` map lacks {missing}", self.capture)
-        if self.feedback:
-            if "policy.action" not in self.feedback:
-                self._fail("`feedback` must return 'policy.action', the atom sent to the engine", self.feedback)
+        if self.feedback or self.engine_atom is not None:
+            if self.engine_atom not in self.capture:
+                self._fail(f"`engine_atom` {self.engine_atom!r} is not a declared capture atom", self.capture)
             for atom, field in self.feedback.items():
                 if atom not in self.capture:
                     self._fail(f"`feedback` returns '{atom}', which is not a declared capture atom", self.capture)
@@ -107,7 +108,7 @@ class TaskContract:
                     self._fail(f"`feedback` writes '{field}', which is not a declared batch field", self.batch)
 
     def check_eval(self, in_keys: Iterable[str]) -> None:
-        """Every eval ``in`` key is a declared capture atom, target field, meta key, ``log.*`` or ``eval.*`` key."""
+        """Every eval ``in`` key is a declared capture atom, target field, meta key, ``log.*``, ``episodes.*`` or ``eval.*`` key."""
         targets = set(self.targets())
         for key in sorted(set(in_keys)):
             namespace, _, name = key.partition(".")
@@ -116,6 +117,7 @@ class TaskContract:
                 "batch": name in targets,
                 "meta": name in self.meta,
                 "log": True,
+                "episodes": True,
                 "eval": True,
             }.get(namespace, False)
             if not known:

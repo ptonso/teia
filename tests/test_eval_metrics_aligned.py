@@ -350,23 +350,21 @@ class TestRankedAveragePrecisionMatchedPath:
 
 
 class TestEpisodeAggregate:
-    def test_groups_rows_by_episode_and_drops_unfinished(self) -> None:
-        # Two envs interleaved: episode 0 terminates after 2 steps, 1 truncates after 3, 2 is cut off.
-        result = EpisodeAggregate().from_source(
-            None,
-            reward=[1.0, 2.0, 3.0, 1.0, 1.0, 5.0],
-            terminated=[0, 0, 1, 0, 0, 0],
-            truncated=[0, 0, 0, 0, 1, 0],
-            episode_id=[0, 1, 0, 1, 1, 2],
-        )
+    def test_reduces_the_ended_episode_records(self) -> None:
+        # Episode 0 ended by boundary key 0 (terminated), 1 by key 1 (a time limit).
+        result = EpisodeAggregate().from_source(None, reward=[4.0, 4.0], length=[2, 3], ended_by=[0, 1])
         assert result["episodes"] == 2
-        assert result["episode_return"] == pytest.approx((4.0 + 4.0) / 2)
+        assert result["episode_return"] == pytest.approx(4.0)
         assert result["episode_length"] == pytest.approx(2.5)
         assert result["terminated_rate"] == pytest.approx(0.5)
         assert [row["episode_id"] for row in result["rows"]] == [0, 1]
 
+    def test_the_return_series_is_configurable(self) -> None:
+        result = EpisodeAggregate(return_name="r_lin").from_source(None, r_lin=[1.0, 3.0], length=[1, 1], ended_by=[0, 0])
+        assert result["episode_return"] == pytest.approx(2.0)
+
     def test_no_ended_episode_reports_zero_episodes(self) -> None:
-        result = EpisodeAggregate().from_source(None, reward=[1.0], terminated=[0], truncated=[0], episode_id=[0])
+        result = EpisodeAggregate().from_source(None, reward=[], length=[], ended_by=[])
         assert result["episodes"] == 0 and result["rows"] == []
 
 

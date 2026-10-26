@@ -27,6 +27,7 @@ class StreamTask(TaskContract):
         "s_adv": Tensor("B *"),
     }
     capture = {"policy.action": Tensor("B *"), "policy.value": Tensor("B")}
+    engine_atom = "policy.action"
     feedback = {"policy.action": "s_act", "policy.value": "s_val"}
 
 
@@ -54,7 +55,7 @@ def _collate(field, key, dtype="float32"):
 
 
 def _dm(*, reset_policy="per_env", runner="sync", buffer="replay", total=18, stats="fixed"):
-    out = ["item.obs", "item.reward", "item.term", "item.trunc"] + (["item.valid"] if reset_policy == "all_done" else [])
+    out = {"item.obs": "obs", "item.reward": "reward", "item.term": "terminated", "item.trunc": "truncated"}
     roles = {"reward": "item.reward", "terminated": "item.term", "truncated": "item.trunc"}
     if reset_policy == "all_done":
         roles["valid"] = "item.valid"
@@ -70,14 +71,17 @@ def _dm(*, reset_policy="per_env", runner="sync", buffer="replay", total=18, sta
             "rollout_steps": 4, "minibatch_size": 4, "update_epochs": 1,
             "in": {**roles, "value": "item.s_val"}, "out": ["item.s_ret", "item.s_adv"], "stage": "stream",
         }
-    runner_cfg = {"total_env_steps": total, "eval_episodes": 3, "episode_id": "item.episode", "return_key": "item.reward"}
+    runner_cfg = {
+        "total_env_steps": total, "eval_episodes": 3, "episode_id": "item.episode", "episode_sums": ["item.reward"],
+        "boundary": ["item.term", "item.trunc"], "reset_policy": reset_policy, "valid": "item.valid" if reset_policy == "all_done" else None,
+    }
     runner_cfg["_target_"] = (
         "teia.core.datamodule.interactive.sync.SyncRunner" if runner == "sync" else "teia.core.datamodule.interactive.async_runner.AsyncRunner"
     )
     if runner == "async":
         runner_cfg["parallel"] = "inline"
     dm = TeiaDataModule(
-        env={"_target_": "_fake_engine.FakeEngine", "num_envs": 3, "length": 3, "reset_policy": reset_policy, "out": out},
+        env={"_target_": "_fake_engine.FakeEngine", "num_envs": 3, "length": 3, "out": out},
         norm={"_target_": "teia.node.data.transform.normalize.Normalize", "stats": stats, "mean": 0.0, "std": 1.0, "in": "item.obs", "out": "item.obs"}
         if stats == "fixed"
         else {"_target_": "teia.node.data.transform.normalize.Normalize", "stats": stats, "in": "item.obs", "out": "item.obs"},
@@ -101,7 +105,7 @@ def _dm(*, reset_policy="per_env", runner="sync", buffer="replay", total=18, sta
 def _cycle(dm, *, training=True, deterministic=False):
     dm._plan()
     ctx = dm._regime.context(dm._policy_module(), training=training)
-    return Cycle(ctx, deterministic=deterministic, return_key="item.reward", episode_id="item.episode")
+    return Cycle(ctx, deterministic=deterministic)
 
 
 def test_a_row_holds_the_acting_state_the_outcome_and_the_final_successor():
@@ -138,7 +142,7 @@ def test_all_done_idles_finished_environments_until_everyone_ends():
     rows = [cycle.step() for _ in range(6)]
     valid = torch.stack([row["item.valid"] for row in rows])
     assert valid[:, 0].tolist() == [True, True, True, False, False, True]
-    assert rows[4]["item.term"].tolist() == [False, False, True]
+    assert (rows[4]["item.term"] & rows[4]["item.valid"]).tolist() == [False, False, True]
 
 
 def test_the_probe_publishes_shapes_without_a_network():
@@ -152,7 +156,8 @@ def test_the_runner_yields_collated_minibatches_and_reports_episodes():
     batches = list(dm.train_dataloader())
     assert batches and batches[0].s_obs.shape == (4, 2)
     metrics = dm._runner.metrics()
-    assert metrics["episode/count"] >= 1 and metrics["episode/return"] == pytest.approx(3.8)
+    assert metrics["episode/count"] >= 1 and metrics["episode/reward"] == pytest.approx(3.8)
+    assert metrics["episode/ended_by/term"] == 1.0
 
 
 def test_the_inline_async_runner_matches_the_sync_contract():
@@ -192,17 +197,102 @@ def test_an_episode_aggregate_over_a_capture_with_no_ended_episode_reports_zero(
 
     from teia.node.eval.metric.aligned.episode_aggregate import EpisodeAggregate
 
-    out = EpisodeAggregate().from_source(None, reward=np.ones(2), terminated=np.zeros(2), truncated=np.zeros(2), episode_id=np.zeros(2))
+    out = EpisodeAggregate().from_source(None, reward=np.zeros(0), length=np.zeros(0), ended_by=np.zeros(0))
     assert out["episodes"] == 0 and out["rows"] == []
 
 
 def test_an_engine_logs_into_the_run_directory_when_the_datamodule_knows_it(tmp_path):
     dm = _dm()
     assert dm._engine_node.log_path is None
-    out = ["item.obs", "item.reward", "item.term", "item.trunc"]
+    out = {"item.obs": "obs", "item.reward": "reward", "item.term": "terminated", "item.trunc": "truncated"}
     with_run = TeiaDataModule(
         run_dir=str(tmp_path),
         env={"_target_": "_fake_engine.FakeEngine", "out": out},
-        runner={"_target_": "teia.core.datamodule.interactive.sync.SyncRunner", "total_env_steps": 1},
+        runner={"_target_": "teia.core.datamodule.interactive.sync.SyncRunner", "total_env_steps": 1, "boundary": ["item.term"]},
     )
     assert with_run._engine_node.log_path == tmp_path / "engine" / "env.log"
+
+
+def _command_dm():
+    from teia.base.data import Command
+
+    class Counter(Command):
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def open(self, seed: int, num_envs: int) -> None:
+            self.value = torch.zeros(num_envs)
+
+        def reset(self, mask: torch.Tensor) -> None:
+            self.calls.append("reset")
+            self.value = torch.where(mask, torch.full_like(self.value, 100.0), self.value)
+
+        def advance(self) -> None:
+            self.calls.append("advance")
+            self.value = self.value + 1
+
+        def __call__(self) -> torch.Tensor:
+            return self.value.clone()
+
+    globals()["Counter"] = Counter
+    dm = _dm()
+    return dm, Counter
+
+
+def test_a_command_is_read_by_both_passes_and_changes_only_between_them():
+    from teia.core.datamodule import TeiaDataModule as DM
+
+    dm, Counter = _command_dm()
+    dm2 = DM(
+        env={"_target_": "_fake_engine.FakeEngine", "num_envs": 3, "length": 3, "out": {"item.obs": "obs", "item.reward": "reward", "item.term": "terminated", "item.trunc": "truncated"}},
+        goal={"_target_": f"{__name__}.Counter", "engine": "env", "out": "item.goal"},
+        roll={"_target_": "teia.core.datamodule.interactive.replay.ReplayBuffer", "warmup_steps": 3, "minibatch_size": 4, "capacity": 60,
+              "in": {"reward": "item.reward", "terminated": "item.term", "truncated": "item.trunc"}, "out": ["item.s_w", "item.s_idx", "item.s_disc"], "stage": "stream"},
+        runner={"_target_": "teia.core.datamodule.interactive.sync.SyncRunner", "total_env_steps": 9, "boundary": ["item.term", "item.trunc"], "episode_id": "item.episode"},
+    )
+    assert dm2._nodes["goal"].engine is dm2._engine_node
+    dm2._plan()
+    command = dm2._nodes["goal"]
+    ctx_cycle = _cycle_for(dm2)
+    first = ctx_cycle.step()
+    assert first["item.goal"].tolist() == [100.0] * 3 and first["item.next_goal"].tolist() == [100.0] * 3
+    assert command.calls[-2:] == ["reset", "advance"]
+    assert ctx_cycle.cur["item.goal"].tolist() == [101.0] * 3
+    ctx_cycle.step()
+    third = ctx_cycle.step()
+    assert third["item.term"].tolist() == [True, False, False] and third["item.goal"].tolist() == [102.0] * 3
+    assert ctx_cycle.cur["item.goal"].tolist() == [101.0, 103.0, 103.0]
+
+
+def _cycle_for(dm):
+    class Contract(TaskContract):
+        batch = {"s_act": Tensor("B *"), "s_w": Tensor("B *"), "s_idx": Tensor("B *"), "s_disc": Tensor("B *")}
+        capture = {"policy.action": Tensor("B *")}
+        engine_atom = "policy.action"
+        feedback = {"policy.action": "s_act"}
+
+    class Fixed(PolicyStub):
+        def act_forward(self, batch, *, deterministic, generator):
+            return {"policy.action": torch.ones(3, 1)}
+
+    dm.bind_contract(Contract())
+    dm.bind_module(Fixed())
+    return Cycle(dm._regime.context(dm._policy_module(), training=True), deterministic=False)
+
+
+def test_an_engine_rejects_an_unknown_signal():
+    dm = TeiaDataModule(
+        env={"_target_": "_fake_engine.FakeEngine", "out": {"item.x": "nonsense"}},
+        runner={"_target_": "teia.core.datamodule.interactive.sync.SyncRunner", "total_env_steps": 1, "boundary": ["item.x"]},
+    )
+    with pytest.raises(ValueError, match="unknown signal"):
+        dm._plan()
+
+
+def test_an_engine_atom_that_is_not_captured_is_rejected():
+    class Bad(TaskContract):
+        capture = {"policy.action": Tensor("B *")}
+        engine_atom = "policy.env_action"
+
+    with pytest.raises(Exception, match="engine_atom"):
+        Bad().check_net([], {"policy.action": "act.action"})

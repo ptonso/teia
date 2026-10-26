@@ -1,9 +1,10 @@
 """The stream-mode cycle (teia:core/datamodule.md#stream-mode), shared by the training runners and eval.
 
-One ``step()`` advances every environment once: the engine steps with the action captured at the current state, two
-phase-filtered item passes run (``end`` for the transition, ``next`` for the state to act from), the netmodule's capture
-slice acts, and the finished row is returned. Core names no field: the engine's ``out`` keys, the task contract's
-``feedback`` map and the configured runner keys are the only vocabulary.
+One ``step()`` advances every environment once: the engine steps with the action captured at the current state, the
+``end`` item pass turns the signals into the transition's targets, the runner resets the finished environments from
+the configured ``boundary`` items, the episodic hooks run, the ``next`` pass builds the state to act from, the
+netmodule's capture slice acts, and the finished row is returned. Core names no field: the engine's signals, the
+task contract's ``engine_atom`` and ``feedback`` map and the configured runner keys are the only vocabulary.
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ from typing import Any
 import torch
 
 from teia.core.datamodule.interactive._tensor_ops import detach_cpu
-from teia.core.datamodule.interactive.runner_base import ACTION_ATOM, RunnerContext
+from teia.core.datamodule.interactive.runner_base import RunnerContext
 
 END_PHASES = frozenset({"preprocess", "target"})
 
@@ -35,22 +36,25 @@ def _to(ws: dict[str, Any], device: torch.device) -> dict[str, Any]:
 
 
 class Cycle:
-    def __init__(self, ctx: RunnerContext, *, deterministic: bool, return_key: str | None = None, episode_id: str | None = None) -> None:
-        self.ctx, self.deterministic, self.return_key, self.episode_id = ctx, deterministic, return_key, episode_id
+    def __init__(self, ctx: RunnerContext, *, deterministic: bool) -> None:
+        self.ctx, self.deterministic = ctx, deterministic
         self._keys = ctx.dm._engine_rec.out_key
         self._state = [i for i, (_, _, role) in enumerate(ctx.engine.spec().outputs) if role == "state"]
         self._act_phases = frozenset({"preprocess"} | ({"augment"} if ctx.training else set()))
         self.env_steps = 0
         self.ended = 0
-        self.episodes: list[tuple[float, int]] = []
+        self.episodes: list[dict[str, Any]] = []
         self.start()
 
     def start(self) -> None:
-        """Reset the engine and act from its initial state."""
+        """Reset the engine and the episodic state, then act from the initial state."""
         n = self.ctx.num_envs
         self._epoch = self.ctx.dm._engine_epoch
         self.env_id = torch.arange(n)
-        self._ret, self._len = torch.zeros(n), torch.zeros(n)
+        self._sums = {key: torch.zeros(n) for key in self.ctx.episode_sums}
+        self._len = torch.zeros(n)
+        self._idle: torch.Tensor | None = None
+        self.ctx.dm._episodic_reset(torch.ones(n, dtype=torch.bool))
         self._observe(self.ctx.engine.reset())
 
     def _observe(self, values: tuple[Any, ...]) -> None:
@@ -64,34 +68,63 @@ class Cycle:
         atom = next(a for a, key in self.ctx.feedback.items() if key == item_key)
         return self.atoms[atom].detach().reshape(-1)
 
+    def _ended(self, end: dict[str, Any]) -> torch.Tensor:
+        """The boundary mask: the OR of the configured boundary items, minus idle environments."""
+        flags = torch.stack([end[key].reshape(self.ctx.num_envs).bool() for key in self.ctx.boundary])
+        ended = flags.any(0)
+        return ended if self._idle is None else ended & ~self._idle
+
     def step(self) -> dict[str, Any]:
         ctx = self.ctx
         if self._epoch != ctx.dm._engine_epoch:
             self.start()
-        step = ctx.engine.step(self.atoms[ACTION_ATOM])
-        self.boundary = step.boundary.detach().to("cpu")
+        signals = ctx.engine.step(self.atoms[ctx.engine_atom])
         feedback = {key: self.atoms[atom] for atom, key in ctx.feedback.items()}
-        end = ctx.dm._stream_pass({**dict(zip(self._keys, step.end)), **feedback}, END_PHASES)
+        end = ctx.dm._stream_pass({**dict(zip(self._keys, signals)), **feedback}, END_PHASES)
+        ended = self._ended(end)
+        if ctx.valid is not None:
+            end[ctx.valid] = torch.ones_like(ended) if self._idle is None else ~self._idle
         row = build_row(self.cur, end)
-        if self.episode_id is not None:
-            row[self.episode_id] = self.env_id.clone()
-        self._account(end)
-        ctx.adapter.reset(step.boundary)
-        self._observe(step.next)
+        if ctx.episode_id is not None:
+            row[ctx.episode_id] = self.env_id.clone()
+        self._account(end, ended.detach().to("cpu"))
+        mask = self._reset_mask(ended)
+        if bool(mask.any()):
+            signals = ctx.engine.reset(mask)
+        ctx.dm._episodic_reset(mask)
+        ctx.dm._episodic_advance()
+        ctx.adapter.reset(mask)
+        self._observe(signals)
         self.env_steps += ctx.num_envs
         return row
 
-    def _account(self, end: dict[str, Any]) -> None:
-        if self.return_key is not None:
-            self._ret += detach_cpu(end[self.return_key]).reshape(-1).float()
-        self._len += 1
-        self.ended += int(self.boundary.sum())
-        for i in torch.nonzero(self.boundary).reshape(-1).tolist():
-            self.episodes.append((float(self._ret[i]), int(self._len[i])))
-            self._ret[i], self._len[i] = 0.0, 0
-        self.env_id = torch.where(self.boundary, self.env_id + self.ctx.num_envs, self.env_id)
+    def _reset_mask(self, ended: torch.Tensor) -> torch.Tensor:
+        """``per_env`` resets what ended; ``all_done`` idles ended environments until every one has ended."""
+        if self.ctx.reset_policy == "per_env":
+            return ended
+        self._idle = ended if self._idle is None else self._idle | ended
+        if bool(self._idle.all()):
+            self._idle = None
+            return torch.ones_like(ended)
+        return torch.zeros_like(ended)
 
-    def drain_episodes(self) -> list[tuple[float, int]]:
+    def _account(self, end: dict[str, Any], boundary: torch.Tensor) -> None:
+        for key, total in self._sums.items():
+            total += detach_cpu(end[key]).reshape(-1).float()
+        self._len += 1
+        self.ended += int(boundary.sum())
+        flags = torch.stack([detach_cpu(end[key]).reshape(-1).bool() for key in self.ctx.boundary])
+        which = flags.int().argmax(0)
+        for i in torch.nonzero(boundary).reshape(-1).tolist():
+            self.episodes.append(
+                {"sums": {key: float(total[i]) for key, total in self._sums.items()}, "length": int(self._len[i]), "ended_by": int(which[i])}
+            )
+            for total in self._sums.values():
+                total[i] = 0.0
+            self._len[i] = 0
+        self.env_id = torch.where(boundary, self.env_id + self.ctx.num_envs, self.env_id)
+
+    def drain_episodes(self) -> list[dict[str, Any]]:
         done, self.episodes = self.episodes, []
         return done
 
@@ -99,8 +132,10 @@ class Cycle:
         done = self.drain_episodes()
         if not done:
             return {}
-        returns, lengths = zip(*done)
-        out = {"episode/length": sum(lengths) / len(lengths), "episode/count": float(len(done))}
-        if self.return_key is not None:
-            out["episode/return"] = sum(returns) / len(returns)
+        count = float(len(done))
+        out = {"episode/length": sum(e["length"] for e in done) / count, "episode/count": count}
+        for key in self.ctx.episode_sums:
+            out[f"episode/{key.split('.', 1)[-1]}"] = sum(e["sums"][key] for e in done) / count
+        for i, key in enumerate(self.ctx.boundary):
+            out[f"episode/ended_by/{key.split('.', 1)[-1]}"] = sum(e["ended_by"] == i for e in done) / count
         return out

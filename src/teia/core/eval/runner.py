@@ -10,6 +10,7 @@ memory for the pass only; re-running a view re-runs its upstream metric.
 from __future__ import annotations
 
 import csv
+import json
 import inspect
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -119,6 +120,13 @@ class RunEvalSource(EvalSource):
             raise KeyError(f"no logger series '{column}' in {self.run_dir / 'logs'}.")
         return values
 
+    def episodes(self, name: str) -> list[float]:
+        """One ended-episode series of a stream-mode eval cycle (``episodes.<name>``), written by the datamodule."""
+        path = self.run_dir / "engine" / "episodes.json"
+        if not path.exists():
+            raise KeyError(f"no ended-episode records at {path}: the run has no stream-mode eval pass.")
+        return json.loads(path.read_text(encoding="utf-8"))[name]
+
     def descriptor(self) -> Mapping[str, Any]:
         path = self.run_dir / "artifacts" / "run.yaml"
         return read_yaml(path) if path.exists() else {}
@@ -161,6 +169,8 @@ def _resolve_source_key(key: str, *, source: EvalSource, results: dict[str, Any]
         return source.meta(key[len("meta.") :])
     if key.startswith("log."):
         return source.log(key[len("log.") :])  # type: ignore[attr-defined]
+    if key.startswith("episodes."):
+        return source.episodes(key[len("episodes.") :])  # type: ignore[attr-defined]
     return source.column(key)
 
 
