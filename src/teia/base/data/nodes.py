@@ -152,6 +152,10 @@ class Engine(IoNode):
     ``in`` and is driven by the runner. Its ``out`` names its outputs positionally; the docstring states the order.
     See teia:base/data/nodes.md."""
 
+    log_path: Any = None
+    """Where the engine writes the simulator's own console output (``<run_dir>/engine/<node>.log``), injected by the
+    datamodule; ``None`` leaves it on the console. An engine routes noisy simulator output here so the console holds Teia's logs."""
+
     @abstractmethod
     def open(self, seed: int) -> None:
         """Build the simulator once per process (lazy, idempotent)."""

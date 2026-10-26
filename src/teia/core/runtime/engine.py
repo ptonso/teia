@@ -106,7 +106,7 @@ def train_project(
 
     _with_dependency_context(config, run_hook_group, config, "pre_build", context)
     train_checkpoint = initial_checkpoint or (config.get("train") or {}).get("resume_from")
-    datamodule_obj = _build_datamodule(config, resolved_project_dir)
+    datamodule_obj = _build_datamodule(config, resolved_project_dir, Path(context["run_dir"]))
     module_obj = _with_dependency_context(config, instantiate, _prepare_module_config(config=config, checkpoint=train_checkpoint))
     context["datamodule"] = datamodule_obj
     context["module"] = module_obj
@@ -204,12 +204,12 @@ def _open_snapshot_stage(
     return config, context, selected_checkpoint
 
 
-def _build_datamodule(config: dict[str, Any], project_dir: Path) -> Any:
+def _build_datamodule(config: dict[str, Any], project_dir: Path, run_dir: Path) -> Any:
     """Instantiate the task contract first, since creating its class registers the batch fields the datamodule's
     collates emit (teia:base/task.md#field-registration), then the datamodule, which receives the contract."""
     contract = _with_dependency_context(config, instantiate, config["task"]) if config.get("task") else None
     datamodule = _with_dependency_context(
-        config, instantiate, _prepare_datamodule_config(config=config, project_dir=project_dir)
+        config, instantiate, _prepare_datamodule_config(config=config, project_dir=project_dir, run_dir=run_dir)
     )
     if hasattr(datamodule, "bind_contract"):
         datamodule.bind_contract(contract)
@@ -217,7 +217,7 @@ def _build_datamodule(config: dict[str, Any], project_dir: Path) -> Any:
 
 
 def _instantiate_stage(config: dict[str, Any], context: dict[str, Any], checkpoint: str | None) -> tuple[Any, Any]:
-    datamodule_obj = _build_datamodule(config, Path(context["project_dir"]))
+    datamodule_obj = _build_datamodule(config, Path(context["project_dir"]), Path(context["run_dir"]))
     module_obj = _with_dependency_context(config, instantiate, _prepare_module_config(config=config, checkpoint=checkpoint))
     context["datamodule"] = datamodule_obj
     context["module"] = module_obj
@@ -950,7 +950,7 @@ def _with_executor_target(module_config: Any, target: str, group: str) -> dict[s
     return {"_target_": target, "_recursive_": False, **module_config}
 
 
-def _prepare_datamodule_config(config: dict[str, Any], project_dir: Path) -> Any:
+def _prepare_datamodule_config(config: dict[str, Any], project_dir: Path, run_dir: Path | None = None) -> Any:
     load_project_python(project_dir)
     datamodule_config = _with_executor_target(strip_internal_metadata(config["datamodule"]), _DATAMODULE_TARGET, "datamodule")
     if "root" in datamodule_config:
@@ -960,6 +960,8 @@ def _prepare_datamodule_config(config: dict[str, Any], project_dir: Path) -> Any
     target = str(datamodule_config.get("_target_", ""))
     if _callable_accepts_kwarg(target, "project_dir"):
         datamodule_config.setdefault("project_dir", str(project_dir))
+    if run_dir is not None and _callable_accepts_kwarg(target, "run_dir"):
+        datamodule_config.setdefault("run_dir", str(run_dir))
     data_root = config.get("data_root")
     if data_root not in (None, "???"):
         if not _callable_accepts_kwarg(target, "data_root"):

@@ -1008,9 +1008,11 @@ class RuntimeValidationTests(unittest.TestCase):
                     "datamodule": {"_target_": "teia.core.datamodule.TeiaDataModule"},
                 },
                 project_dir=root,
+                run_dir=root / "run",
             )
 
             self.assertEqual(prepared["project_dir"], str(root))
+            self.assertEqual(prepared["run_dir"], str(root / "run"))
             self.assertEqual(prepared["data_root"], str((root / "datamodule/examples/multi-cls").resolve()))
 
     def test_prepare_datamodule_config_rejects_targets_without_data_root_support(self) -> None:

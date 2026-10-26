@@ -194,3 +194,15 @@ def test_an_episode_aggregate_over_a_capture_with_no_ended_episode_reports_zero(
 
     out = EpisodeAggregate().from_source(None, reward=np.ones(2), terminated=np.zeros(2), truncated=np.zeros(2), episode_id=np.zeros(2))
     assert out["episodes"] == 0 and out["rows"] == []
+
+
+def test_an_engine_logs_into_the_run_directory_when_the_datamodule_knows_it(tmp_path):
+    dm = _dm()
+    assert dm._engine_node.log_path is None
+    out = ["item.obs", "item.reward", "item.term", "item.trunc"]
+    with_run = TeiaDataModule(
+        run_dir=str(tmp_path),
+        env={"_target_": "_fake_engine.FakeEngine", "out": out},
+        runner={"_target_": "teia.core.datamodule.interactive.sync.SyncRunner", "total_env_steps": 1},
+    )
+    assert with_run._engine_node.log_path == tmp_path / "engine" / "env.log"

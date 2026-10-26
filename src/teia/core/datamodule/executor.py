@@ -108,6 +108,7 @@ class TeiaDataModule(LightningDataModule):
         drop_last: bool = False,
         data_root: str | None = None,
         project_dir: str | None = None,
+        run_dir: str | None = None,
         image_size: Any = None,
         pixel_norm: str | None = None,
         eval_capture_only: bool = False,
@@ -146,6 +147,8 @@ class TeiaDataModule(LightningDataModule):
             node.in_key, node.out_key = rec.in_key, rec.out_key
             node.phase, node.stage = rec.phase, rec.stage
             node.in_roles = rec.in_roles
+            if rec.kind == "engine":
+                node.log_path = Path(run_dir) / "engine" / f"{rec.name}.log" if run_dir else None
             for attr in _SHARED_NODE_ATTRS:
                 if hasattr(node, attr) and getattr(node, attr, None) is None:
                     setattr(node, attr, shared[attr])
