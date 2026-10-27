@@ -29,16 +29,35 @@ A project that builds on teia lists `pyteia` in its own dependencies, for exampl
 
 ## Quick start
 
-Two demos live in the repository's `demo/` folder and need no dataset download:
+One demo per task lives in the repository's `demo/` folder and needs no dataset download:
 
 ```bash
 git clone https://github.com/ptonso/teia && cd teia
 pip install "pyteia[vision]"
-./demo/digits.sh      # scikit-learn digits as an image folder, Flatten + MLP
-./demo/tabular.sh     # 3-class table, MLP
+./demo/vision-cls.sh        # scikit-learn digits as an image folder
+./demo/tabular-cls.sh       # 3-class table
+./demo/graph-node-cls.sh    # random graphs in the TU Dortmund format
+./demo/vision-graph-node-cls.sh # the same graphs with a red or green image per node
+./demo/tabular-multi-cls.sh # 3 independent labels over a table
+./demo/tabular-reg.sh       # noisy linear target over a table
+./demo/tabular-survival.sh  # right-censored event times in whole weeks
+./demo/tabular-forecast.sh  # monthly series for three routes
+./demo/vision-multi-cls.sh  # digits filed under parity and range labels
+./demo/vision-sem-seg.sh    # digits with a stroke mask
+./demo/audio-cls.sh         # synthetic tones as an audio folder (needs pyteia[audio])
+./demo/audio-multi-cls.sh   # the same tones with pitch and duration labels
+./demo/audio-wave-cls.sh    # the same tones, read as raw waveforms
+./demo/vision-det.sh        # colored rectangles, boxes on a 4 x 4 grid
+./demo/vision-obb.sh        # rotated rectangles as LabelMe polygons
+./demo/vision-pose.sh       # rectangles with their four corners as keypoints
+./demo/vision-inst-seg.sh   # ellipses with outline polygons
+./demo/vision-gen.sh        # linear autoencoder on digits (needs pyteia[fid]; the FID downloads the Inception weights once)
+./demo/rl-discrete.sh       # linear Q-function on CartPole (needs pyteia[rl]; the world is gym:CartPole-v1, no data)
+./demo/rl-continuous-replay.sh # linear soft actor-critic on Pendulum
+./demo/rl-continuous.sh     # linear PPO on Pendulum
 ```
 
-Each script runs a small `prepare_*.py` that writes the data under `demo/data/`, then runs `teia train` with a datamodule, a netmodule and an evalmodule. Extra arguments are forwarded to `teia train`.
+Each script calls a small script from `demo/prepare/` that writes the data under `demo/data/` (the reinforcement-learning demo needs none, its world is a registered environment id), then runs `teia train task=<task>`. Teia ships a `linear_probe` netmodule per task, a one-layer network that checks the data and the contract and is not meant to perform. You write the netmodule that does, in your project. Extra arguments are forwarded to `teia train`.
 
 CLI:
 
@@ -47,13 +66,13 @@ CLI:
 - `teia train`, `teia test`, `teia eval`, `teia infer`, `teia export`
 - `teia plugin init`, `teia plugin check`: scaffold a project as a teia plugin and verify it ([specs/plugin](https://github.com/ptonso/teia/blob/main/specs/plugin.md))
 
-A **task** is a contract over what the graphs exchange (`teia.task.*`). A task preset selects a datamodule, a netmodule and an evalmodule. You can also wire the three modules yourself:
+A **task** is a contract over what the graphs exchange (`teia.task.*`). A task preset selects a datamodule, a linear probe and an evalmodule. You can also wire the three modules yourself:
 
 ```bash
 teia train \
   datamodule=tabular-cls/csv \
-  netmodule=tabular-cls/numerical_mlp \
-  evalmodule=tabular-cls/default \
+  netmodule=tabular-cls/linear_probe \
+  evalmodule=cls/default \
   data_root=...
 ```
 

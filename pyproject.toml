@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyteia"
-version = "0.1.0"
+version = "0.2.0"
 description = "A Hydra-configured deep-learning runtime: data, network and evaluation graphs declared in config and run by a thin Lightning engine."
 readme = "README.md"
 requires-python = ">=3.11"
