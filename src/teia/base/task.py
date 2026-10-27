@@ -77,7 +77,7 @@ class TaskContract:
         super().__init_subclass__(**kwargs)
         for name in cls.batch:
             if name not in FIELD_VOCAB:
-                register_field(name)
+                register_field(name, provisional=True)
 
     def targets(self) -> list[str]:
         """Batch fields captured as eval ground truth."""

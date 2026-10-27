@@ -97,12 +97,20 @@ def compose_batch(names: Iterable[str]) -> type:
     return _compose(tuple(names))
 
 
-def register_field(name: str, *, structure: Structure | None = None, optional: bool = True) -> None:
-    """Escape hatch for names not known in advance (exotic multi-modal dict-obs backends emitting
-    ``obs_<key>`` for an arbitrary key). Idempotent — re-registering the same name with the same spec
-    is a no-op; re-registering with a different spec is a hard error (catches accidental collisions)."""
+#: Names a task contract registered with the default spec; a collate's explicit registration replaces them.
+_PROVISIONAL: set[str] = set()
+
+
+def register_field(name: str, *, structure: Structure | None = None, optional: bool = True, provisional: bool = False) -> None:
+    """Register a field name that is not in ``FIELD_VOCAB``. Re-registering the same name with the same spec is a
+    no-op and with a different spec a hard error (catches accidental collisions). A ``provisional`` entry, which a task
+    contract registers for a field it declares, is replaced by the next explicit registration, so the result does not
+    depend on whether the contract or the collate that emits the field is imported first."""
     existing = FIELD_VOCAB.get(name)
     spec = _f(name, structure=structure, optional=optional)
-    if existing is not None and existing != spec:
+    if existing is not None and existing != spec and name not in _PROVISIONAL:
         raise ValueError(f"register_field({name!r}, ...) conflicts with existing FIELD_VOCAB entry {existing!r}.")
     FIELD_VOCAB[name] = spec
+    _PROVISIONAL.discard(name)
+    if provisional:
+        _PROVISIONAL.add(name)
