@@ -4,7 +4,7 @@ Related: **Read first** [../base/data/nodes](../base/data/nodes.md). **See also*
 
 ## Overview
 
-The canonical filesystem and Hydra group layout for every data-plane component in `teia.node.data`, and the procedure for placing a new one. `teia.node.data` is one of two sibling component libraries under `teia.node` (the other is `teia.node.net`), organized by data-node kind, never by modality or format. This spec is the companion to [base/data/nodes](../base/data/nodes.md), which owns the six ABCs. It documents the concrete taxonomy and the recurring authoring patterns the ABCs make possible: stateful fit and cross-sample reads.
+The canonical filesystem and Hydra group layout for every data-plane component in `teia.node.data`, and the procedure for placing a new one. `teia.node.data` is one of two sibling component libraries under `teia.node` (the other is `teia.node.net`), organized by data-node kind, never by modality or format. This spec is the companion to [base/data/nodes](../base/data/nodes.md), which owns the seven ABCs. It documents the concrete taxonomy and the recurring authoring patterns the ABCs make possible: stateful fit and cross-sample reads.
 
 A CSV reader and an image-folder reader are both just `reader/` components. Format (csv, jpeg, parquet) discriminates which reader you pick, not where readers live.
 
@@ -12,12 +12,12 @@ A CSV reader and an image-folder reader are both just `reader/` components. Form
 
 The canonical definitions of **data node**, **workspace**, **key**, **phase** and **stage** are in [base/data/nodes](../base/data/nodes.md).
 
-- **kind folder**: one of the six top-level folders (`reader/`, `transform/`, `join/`, `reshape/`, `collate/`, `writer/`), each housing every concrete component of that ABC regardless of domain.
+- **kind folder**: one of the eight top-level folders (`reader/`, `engine/`, `command/`, `transform/`, `join/`, `reshape/`, `collate/`, `writer/`), each housing every concrete component of that ABC regardless of domain.
 - **stateful transform**: a `Transform` that fits state at `plan` stage from a materialized `train_stream` (impute, scale, encode, vocab).
 
 ## Map
 
-- `teia.node.data.{reader,transform,join,reshape,collate,writer}`. Conf leaves under `conf/node/data/<kind>/*`, and the graphs composing them under `conf/datamodule/<task>/*`.
+- `teia.node.data.{reader,engine,command,transform,join,reshape,collate,writer}`. Conf leaves under `conf/node/data/<kind>/*`, and the graphs composing them under `conf/datamodule/<task>/*`.
 - Executor and graph: [core/datamodule](../core/datamodule.md), [core/data_graph](../core/data_graph.md).
 
 ## Contracts
@@ -28,7 +28,9 @@ The canonical definitions of **data node**, **workspace**, **key**, **phase** an
 data/
   reader/<module>.py          # files, image_folder, rows, csv, parquet, sql, audio, coco, labelme
     extension/<component>.py  # ReaderExtension helpers appended to a reader record
-  transform/<module>.py       # decode, geometry, normalize, stft, parse_*, labels, schema, ...
+  engine/<module>.py          # live simulators stepped with actions (stream mode)
+  command/<module>.py         # per-environment targets drawn by Teia (stream mode)
+  transform/<module>.py       # decode, geometry, normalize (Normalize), stft, parse_*, labels, schema, ...
     augment/<component>.py    # train-only augment-phase rewrites
   join/<module>.py            # align (KeyJoin)
   reshape/<module>.py         # window (PlanReshape)
@@ -50,13 +52,15 @@ The kind is inferred from the component's ABC. `phase` and `stage` keep per-kind
 
 ### Placement procedure
 
-1. Opens a source and emits an indexed stream (`iter_split`, or `stage: stream` for a live source)? `reader/`.
-2. Maps one item to one item? `transform/` (`transform/augment/` if `phase: augment`).
-3. Aligns two or more streams by key? `join/`.
-4. Redefines item granularity? `reshape/`, as `PlanReshape` (materialized source, single shot) or `StreamReshape` (unbounded source, incremental). The choice follows source cardinality, not convenience.
-5. Assembles one atomic `batch.*` field from a list of item values? `collate/`.
-6. Materializes a prediction or activation record back to a container? `writer/`.
-7. Has no `in`/`out` envelope, phase or stage, so the graph cannot toposort it? It is not a data node.
+1. Opens a source and emits an indexed stream (`iter_split`)? `reader/`.
+2. Owns a live simulator that is stepped with actions and emits per-step signals? `engine/` ([base/data/nodes](../base/data/nodes.md#engine)).
+3. Holds state per environment, is redrawn on episode resets and is read by transforms (a goal, a task selector)? `command/` ([base/data/nodes](../base/data/nodes.md#command)).
+4. Maps one item to one item? `transform/` (`transform/augment/` if `phase: augment`).
+5. Aligns two or more streams by key? `join/`.
+6. Redefines item granularity? `reshape/`, as `PlanReshape` (materialized source, single shot) or `StreamReshape` (unbounded source, incremental). The choice follows source cardinality, not convenience.
+7. Assembles one atomic `batch.*` field from a list of item values? `collate/`.
+8. Has no `in`/`out` envelope, phase or stage, so the graph cannot toposort it? It is not a data node.
+9. Materializes a prediction or activation record back to a container? `writer/`.
 
 ### Pattern: reader extension
 
@@ -71,6 +75,18 @@ class ReaderExtension:
 ### Fit timing
 
 A transform's fit timing has exactly two shapes. Most fit once at `plan` stage from a materialized `train_stream` (impute means, category vocabularies, letterbox stats). A transform whose true source is unbounded reads training state continuously through `self.training`, updating on every call when `True` and freezing when `False`. `state()` and `load_state()` persistence applies identically. A third shape should not be invented without checking that one of these two fits.
+
+### Pattern: Normalize
+
+`Normalize` (`transform/normalize.py`) is the one normalization transform: `(x - mean) / std` over a configured `axis`, with an optional `scale` applied first (`1/255` for uint8 images) and an optional `clip`. Its statistics come from one of three sources, which are the fit timings above plus fixed literals:
+
+| `stats` | source | example |
+|---|---|---|
+| `fixed` | `mean` and `std` from config | ImageNet statistics on `batch.image`, `axis: 1` |
+| `fit` | fitted once on the train split at `plan` | standardizing a numeric item field |
+| `running` | updated on every call while `training`, frozen otherwise | observation normalization in stream mode |
+
+`pixel_norm: imagenet | unit | signed` is a preset for image batches (`axis: 1`, `scale: 1/255`, the matching `mean` and `std`); the vision leaves `normalize_image.yaml` and `normalize_pixel_norm.yaml` set it. The leaf is `conf/node/data/transform/normalize.yaml`; image recipes set `stats: fixed` with their channel axis. State persists through `state()` and `load_state()` for `fit` and `running`, and `params()` bakes the current statistics for export.
 
 ### Pattern: stateful transform
 
@@ -98,7 +114,8 @@ To add a reader, transform, join, reshape, collate or writer, place it with the 
 
 ## Constraints
 
-- The data skeleton MUST be exactly the six kind folders, and no data tree MAY be grouped by domain.
+- The data skeleton MUST be exactly the eight kind folders, and no data tree MAY be grouped by domain.
+- A transform MUST be named by what it computes, never by the field it is usually applied to (`Normalize`, not a state- or image-specific normalizer).
 - A component with unbounded input MUST NOT be shoehorned into `PlanReshape`.
 - A `stream`-stage node MUST declare `stage: stream` explicitly, and it is never a kind default.
 - A node consuming a live external value MUST do so through `ctx.<name>` in its ordinary `in` list, resolved by `bind_context` and `resolve_context`, with no bespoke attribute injection and no `needs_*` boolean. `needs_siblings` is the one existing exception and not a template.

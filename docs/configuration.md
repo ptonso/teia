@@ -6,7 +6,7 @@ A Teia run is three graphs, composed from config:
 - the **netmodule** is the network: it turns batches into losses and predictions;
 - the **evalmodule** turns the captured predictions into metrics, plots and tables.
 
-A **task** (`vision-cls`, `tabular-cls`, ...; contract class `teia.task.vision_cls.VisionCls`) is a contract over what these graphs hand each other. A task preset (`conf/task/<name>.yaml`) selects one module per graph. That gives you three ways to work.
+A **task** (`vision-cls`, `tabular-cls`, ...; contract class `teia.task.vision_cls.VisionCls`) is a contract over what these graphs hand each other. A task preset (`conf/task/<name>.yaml`) selects one module per graph: a datamodule for one standard data format, the task's evaluation and a `linear_probe` netmodule. Teia ships no other netmodule, since an architecture is a modeling choice that belongs to your project. That gives you three ways to work.
 
 ## 1. Use a task preset
 
@@ -14,7 +14,13 @@ A **task** (`vision-cls`, `tabular-cls`, ...; contract class `teia.task.vision_c
 teia train task=vision-cls data_root=/data/pets
 ```
 
-`task=` picks the preset: a datamodule, a network, the evaluation, and the task contract that validates their wiring. `data_root=` is the only dataset knob.
+`task=` picks the preset: a datamodule, a linear probe, the evaluation, and the task contract that validates their wiring. The probe is a one-layer network that proves the data and the contract work end to end and is not meant to perform. `data_root=` is the only dataset knob.
+
+To train a real network, write a netmodule in your project's `conf/` (start from `teia config show netmodule=vision-cls/linear_probe`), keep its inputs, objective and `capture:` map, and select it:
+
+```bash
+teia train task=vision-cls netmodule=vision-cls/resnet18_pets data_root=/data/pets
+```
 
 ## 2. Swap inside a module
 
@@ -37,7 +43,7 @@ A key that does not exist yet needs `++` (`++trainer.fast_dev_run=true`).
 Drop the task and select (or write) the three modules yourself:
 
 ```bash
-teia train datamodule=vision-cls/image_folder netmodule=vision-cls/mlp evalmodule=vision-cls/default data_root=...
+teia train datamodule=vision-cls/image_folder netmodule=vision-cls/linear_probe evalmodule=cls/default data_root=...
 ```
 
 Without `task=` there is no contract check, only the graph's own wiring checks. To start from a task and own everything, materialize it:
@@ -55,8 +61,8 @@ node/net/<kind>/
 node/eval/<kind>/
 datamodule/<name>/       wired graphs
 netmodule/<task>/
-evalmodule/<task>/
-task/<task>.yaml         contract + one default per graph
+evalmodule/<family>/      one per capture family (cls, det, ...)
+task/<task>.yaml         contract + datamodule, linear probe and evalmodule
 trainer/ callbacks/ …    run-wide settings
 ```
 
@@ -69,8 +75,8 @@ A `conf/` directory in your project is layered on top of the installed config. P
 ```bash
 teia config init                          # stubs: conf/node/net/{head,loss}/custom.yaml, conf/node/data/reader/custom.yaml
 teia config list                          # the layers, in order
-teia config show netmodule=vision-cls/mlp --resolved
-teia config explain task=vision-cls netmodule=vision-cls/mlp
+teia config show netmodule=vision-cls/linear_probe --resolved
+teia config explain task=vision-cls netmodule=vision-cls/linear_probe
 teia config lint
 ```
 

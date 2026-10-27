@@ -71,7 +71,7 @@ Deterministic behavior is runtime-wide. `runtime.determinism.mode` applies to al
 
 - Relative path fields MUST resolve against `project_dir`.
 - Continued `teia train` MUST reject a change to `datamodule._target_` or `netmodule._target_` (`ValueError` from `_validate_continued_train_compatibility`).
-- `data_root` existence MUST be validated before any snapshot is written, and a missing path raises `FileNotFoundError`.
+- `data_root` existence MUST be validated before any snapshot is written, and a missing path raises `FileNotFoundError`. A `<scheme>:<id>` value is exempt and the engine node rejects an unknown scheme or id when it opens.
 - Packs and project configs MUST NOT set `trainer.deterministic`. Teia derives it from `runtime.determinism.mode`.
 - `trainer.benchmark=true` MUST be rejected when the determinism mode is `force` or `prefer`.
 - The engine MUST NOT hold the module or datamodule alive for the eval pass. Eval nodes read the capture store, never live objects.

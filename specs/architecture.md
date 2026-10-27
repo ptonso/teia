@@ -30,7 +30,7 @@ Terms shared across the whole spec set. Subsystem specs link here instead of red
 - `teia.base`: the torch-only contract floor ([base/structure](base/structure.md), [base/batch](base/batch.md), [base/task](base/task.md), the node ABCs).
 - `teia.core`: the engine, CLI, Hydra composition, runtime, the three graph executors, capture, export and infer ([core/overview](core/overview.md)).
 - `teia.node.data`: data components by node kind ([data/layout](data/layout.md)). `teia.node.net`: compute components by `fan × assumes` ([net/layout](net/layout.md)). `teia.node.eval`: evaluation components by ABC kind × pairing ([eval/layout](eval/layout.md)). `teia.task`: task contracts. `teia.callbacks`: training callbacks.
-- `src/teia/conf/`: operational config, reference leaves under `conf/node/{data,net,eval}`, and per task its preset, evalmodule, format datamodule and `linear_probe` netmodule. `demo/`: one runnable script per task, never installed ([core/task](core/task.md#demo-and-fixtures)).
+- `src/teia/conf/`: operational config, reference leaves under `conf/node/{data,net,eval}`, per task its preset, format datamodule and `linear_probe` netmodule, and per capture family its evalmodule. `demo/`: one runnable script per task, never installed ([core/task](core/task.md#demo-and-fixtures)).
 - No distribution owns `teia/__init__.py`, since `teia` and `teia.node` are namespace levels. Plugins add components and configs under their own package and attach their configs through auto-discovered Hydra search-path plugins ([plugin](plugin.md)).
 
 ## Contracts
@@ -60,7 +60,7 @@ Every run is described by four independent axes, each with one home.
 - `teia.node.eval.*`: evaluation components grouped by ABC kind (`metric/` sub-grouped by pairing `aligned/` and `unpaired/`, `view/` by payload geometry, `compare/`), plus `kernel/` sub-nodes. No domain folder.
 - `teia.node.net.*`: compute components `<fan>/<assumes>/`, with `activation/` and `loss/` flat. There is no Python `stem`, `encoder` or `head` folder, and a stem is just a `one_to_one` node.
 - A graph folder (`teia.node.{net,data,eval}`, `conf/node/{net,data,eval}`) holds nodes only, meaning components with `in`/`out` wired by a module. Non-nodes are siblings named by kind: `teia.task` with `conf/task/`, `teia.callbacks`, and `conf/optim/`.
-- Recipes are config: node leaves `conf/node/{data,net,eval}/*`, modules `conf/{datamodule,netmodule,evalmodule}/<task>/*`, and task presets `conf/task/*`. Task contracts are `teia.task.*`.
+- Recipes are config: node leaves `conf/node/{data,net,eval}/*`, modules `conf/{datamodule,netmodule}/<task>/*` and `conf/evalmodule/<family>/*`, and task presets `conf/task/*`. Task contracts are `teia.task.*`.
 
 ### The base contract floor
 
@@ -68,7 +68,7 @@ Every run is described by four independent axes, each with one home.
 
 ### Config ownership
 
-`teia` owns operational config in-package (`config.yaml` with the primary slot list, core runtime groups, trainer and callback defaults, infer and export adapters), the reference leaves of its components under `conf/node/{data,net,eval}`, and for each task it ships the preset, `evalmodule/<task>/default`, one format datamodule and `netmodule/<task>/linear_probe` ([core/task](core/task.md)). Every other module and every tuned recipe belongs to a project ([ecosystem](ecosystem.md#where-code-lives)). Its Hydra search-path plugin auto-registers the config, so `teia train task=<name>` composes after install. Module groups and `task` are primary-level `optional <name>: null` selections, and a task preset is written `# @package _global_` ([core/config](core/config.md)).
+`teia` owns operational config in-package (`config.yaml` with the primary slot list, core runtime groups, trainer and callback defaults, infer and export adapters), the reference leaves of its components under `conf/node/{data,net,eval}`, and for each task it ships the preset, one format datamodule and `netmodule/<task>/linear_probe`, and for each capture family `evalmodule/<family>/default` ([core/task](core/task.md)). Every other module and every tuned recipe belongs to a project ([ecosystem](ecosystem.md#where-code-lives)). Its Hydra search-path plugin auto-registers the config, so `teia train task=<name>` composes after install. Module groups and `task` are primary-level `optional <name>: null` selections, and a task preset is written `# @package _global_` ([core/config](core/config.md)).
 
 ### Dependency direction
 

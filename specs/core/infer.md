@@ -6,7 +6,7 @@ Related: **Read first** [runtime](runtime.md), [data_graph](data_graph.md). **Se
 
 `teia infer` is the standalone, modality-agnostic prediction stage. Inference is a rewired data graph wired to the trained module: reader nodes over the new `--src`, the trained `preprocess` subgraph, the trained module, and writer nodes that materialize predictions to disk, plus the canonical `predictions.jsonl`. A single instance is a size-1 dataset.
 
-It is dataset prediction only. Live collection is a separate stage and does not route through the infer runner.
+It is dataset prediction only. Stream mode (an engine as source) is a separate stage and does not route through the infer runner.
 
 Walk-through: teia loads the saved config, replays overrides, rebuilds the datamodule, and rebinds its readers to `--src`, dropping `target` and `augment` nodes by phase. It rebuilds the module and runs one Lightning `trainer.predict`, where `predict_step` runs `forward → activate → postprocess` over every activation node and reads the result through the netmodule's `capture:` map. The resulting `capture.*` atoms go to the datamodule's writer nodes and to `predictions.jsonl`.
 
@@ -44,5 +44,4 @@ The source is the run directory only. Exported-bundle inference is out of scope.
 - The infer runner MUST NOT branch per modality. The data graph is encoded entirely in the saved config.
 - Native-mirror write-back MUST preserve source columns and row order and fail fast on a `<field>_pred` name collision.
 - A datamodule lacking `write_predictions` MUST fail fast under `teia infer`.
-- A run whose datamodule is stream-driven has no per-sample prediction dataset and no `predict_dataloader`, so `teia infer` fails fast on it.
-
+- A stream-mode run (its data graph has an engine) has no per-sample prediction dataset and no `predict_dataloader`, so `teia infer` MUST fail fast on it, checked on the presence of an engine node.

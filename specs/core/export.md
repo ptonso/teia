@@ -23,7 +23,7 @@ Walk-through: export rebuilds the module from saved config and weights. It walks
 
 ## Map
 
-- `teia.core.export`: `bundle` (`BundleContract`), `collect` (`collect_callable`, `KERNEL_PACKAGES`), `preprocess_slice` (`resolve_data_graph_chain`, `resolve_interactive_chain`), `assemble` (`write_bundle_runtime`), `kernels` (teia-independent helpers).
+- `teia.core.export`: `bundle` (`BundleContract`), `collect` (`collect_callable`, `KERNEL_PACKAGES`), `preprocess_slice` (`resolve_data_graph_chain`), `assemble` (`write_bundle_runtime`), `kernels` (teia-independent helpers).
 - Kernel contracts: [base/data/nodes](../base/data/nodes.md) (preprocess `kernel` and `params()`) and [base/net/activation](../base/net/activation.md) (activation `kernel`).
 - The graph being sliced: [data_graph](data_graph.md).
 
@@ -37,7 +37,7 @@ A kernel is always an inline `@staticmethod def kernel(...)` on its class, named
 
 ### Chain resolution
 
-`resolve_data_graph_chain` walks a model-input `batch.<field>` backward through preprocess transforms, across the one `Collate` seam, and through any batch-stage rewrite, to its data-loading root. The root producer's key names the payload key, and the root's kind names the payload spec. A root is a `read` or `join` node, a `Reshape` node, or a `target` or `source` transform that supplies an input field (`ParseLabelme` yielding `item.img_path`). Each terminates the walk like a reader, and a step on the input path must itself be `phase=preprocess`. The interactive regime has one counterpart, `resolve_interactive_chain`, which queries the datamodule's single `ObsTransform` per observation key (`kernel_for(obs_key)`, `params_for(obs_key)`).
+`resolve_data_graph_chain` walks a model-input `batch.<field>` backward through preprocess transforms, across the one `Collate` seam, and through any batch-stage rewrite, to its data-loading root. The root producer's key names the payload key, and the root's kind names the payload spec. A root is a `read` or `join` node, a `Reshape` node, or a `target` or `source` transform that supplies an input field (`ParseLabelme` yielding `item.img_path`). Each terminates the walk like a reader, and a step on the input path must itself be `phase=preprocess`. In stream mode the walk ends at the engine, which roots the chain like a reader, so a policy bundle carries the same `preprocess` transforms the runner applies before acting (for example a `running` `Normalize` with its baked statistics).
 
 ### Windowed export
 
@@ -103,4 +103,3 @@ To make a new node exportable, give it an inline `kernel` and `params()` per [ba
 - The ONNX tracer MUST be the dynamo exporter (`torch.export` + FX, `strict=False`), with `dynamic_shapes` as a list of `{axis: torch.export.Dim}`, one per input, and no TorchScript fallback. Because `torch.export` specializes size-0/1 dims, the dynamic batch axis needs an example extent of at least 2. A model containing an `nn.RNNBase` traces at static `batch_size=1`.
 - Export MUST emit a single `[teia] export complete` status line, and third-party logging from `torch.onnx` and third-party model hubs is suppressed for its duration.
 - Bundle extras MUST be owned by the producing component through `export_artifacts()`, never by export-side domain code.
-

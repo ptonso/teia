@@ -9,7 +9,7 @@ Teia can describe itself, and you should let it. The CLI reads the installed pac
 | What commands and flags exist | `teia --help`, `teia <command> --help` |
 | Where options come from | `teia config list` prints the layers in search order. A layer named after a package means that plugin is installed, the project's own plugin included once it is installed ([make-a-plugin](make-a-plugin.md)). `project (none)` means the project has no local `conf/` yet, and `teia init` creates it. |
 | Which tasks exist | `teia config tree --root task` |
-| Which modules fit a task | `teia config tree --root netmodule/<task>`, and the same with `datamodule/<task>` or `evalmodule/<task>` |
+| Which modules fit a task | `teia config tree --root netmodule/<task>`, and the same with `datamodule/<task>`. Evaluations are folded by capture family, not by task: `teia config tree --root evalmodule` lists them (`cls`, `multi-cls`, `det`, ...), and the task's preset names its own |
 | Which components exist for a purpose | `teia config tree --root node/net/<purpose>`, or `node/data/<kind>`, `node/eval/<kind>`. Without `--root` you see the whole tree, and `--node-only` hides the option files. |
 | What a task promises | `teia config show task=<task>` |
 | How a module is wired | `teia config show netmodule=<task>/<name>` (add `--resolved` for the composed result) |
@@ -23,7 +23,7 @@ Everything above lists what is installed right now, so trust it over anything yo
 
 ## Reading what comes back
 
-**A task** is a preset plus a contract. `config show task=<task>` shows the default module of each graph and a `task._target_` naming a Python class. Open that class: it lists the `batch.*` and `meta.*` keys the datamodule promises (seam A) and the `capture.*` atoms the network promises (seam B). Read it first when you need to understand what a task is for, what data it consumes, and what it predicts. The vocabulary it uses (tensor, ragged, blob, dimension, names) is defined in the `teia.base.task` module docstring.
+**A task** is a preset plus a contract. `config show task=<task>` shows the module of each graph (its netmodule is the `linear_probe`) and a `task._target_` naming a Python class. Open that class: it lists the `batch.*` and `meta.*` keys the datamodule promises (seam A) and the `capture.*` atoms the network promises (seam B). Read it first when you need to understand what a task is for, what data it consumes, and what it predicts. The vocabulary it uses (tensor, ragged, blob, dimension, names) is defined in the `teia.base.task` module docstring.
 
 **A module** shows two things: which leaves it mounts (`defaults:` entries such as `/node/net/head@head: <leaf>`), and how it wires them (each alias's `in` and `out`). Read the wiring the way you read a diagram: `in` keys come from a producer, `out` keys feed a consumer, and the netmodule's `capture:` map connects to the contract.
 

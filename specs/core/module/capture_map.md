@@ -63,10 +63,14 @@ The `ctx` passed to `postprocess` is `evalmodule.ctx` during capture and streami
 
 `CaptureMap` adds every `batch.<field>` the contract marks `target=True`, read from the same batch. There is no second ground-truth path.
 
+### Capture slice
+
+In stream mode the runner acts through the capture slice: the generated forward pruned to the nodes the `capture:` map transitively needs, plus their activations ([codegen](codegen.md)). Critics, target clones and loss inputs are not executed. The slice runs under `no_grad` on the act batch, the activations sample while training and act deterministically in eval, and `CaptureMap` yields the atoms the contract's `feedback` writes back ([../../base/task](../../base/task.md#feedback)). The same slice is the policy that [export](../export.md) bundles, so acting and deployment run identical code.
+
 ## Constraints
 
 - Every contract `capture` atom MUST be covered by the map, except `Ragged` index atoms, which are derived. This is checked by `TaskContract.check_net` at pre-flight.
-- A map value MUST name an `act.*` out-key or a `post.<alias>.*` of a declared activation node. Anything else fails at build with the offending key.
+- A map value MUST name an `act.*` out-key, a `post.<alias>.*` of a declared activation node, or a `pred.<name>` forward output that fills a `Tensor` atom (a value head read as `policy.value`). Anything else fails at build with the offending key. Acting serves `act.*` and `pred.*` sources only, since `post.*` runs host-side.
 - `CaptureMap` MUST be the only producer of `capture.*` atoms, shared by streaming validation, the store writer and inference.
 - Core MUST NOT interpret an atom's meaning. Assembly depends on the contract's spec type only.
-
+- Acting in stream mode MUST run only the capture slice, never the full forward.

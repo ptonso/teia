@@ -6,7 +6,7 @@ Related: **Read first** [architecture](architecture.md), [stability](stability.m
 
 `teia` is the hub of a network of packages that speak one language: the base classes, the task contracts and the evaluation. A research project that follows the language is a **plugin**, an installable package that adds components, configs and tasks. Anyone who installs `teia` and a plugin runs the plugin's method with the same commands, on the same data pipeline, scored by the same evaluation as everything else.
 
-Every piece of code has exactly one home. Reuse happens by installing the package that owns a component, never by copying it. Code that does not speak the language is wrapped once, and the wrapper becomes its single home.
+Every piece of code has exactly one home among installed packages. Reuse happens by installing the package that owns a component, and two installed packages never ship one component. A private workshop is the one source projects copy from instead: a project takes a frozen copy under its own package, so it is reproducible and depends on no private package. Code that does not speak the language is wrapped once, and the wrapper becomes its single home.
 
 Walk-through: a researcher starts a private project as a plugin, builds a new component, and compares it with existing methods on a teia task. When the paper is published, the project becomes public. A second project that wants the new component installs the first project at a tagged version. If the component becomes standard, it moves into `teia`.
 
@@ -31,7 +31,7 @@ Walk-through: a researcher starts a private project as a plugin, builds a new co
 | research plugin | one project's contribution, its baselines and their configs | with the paper, as a tagged repository or on PyPI |
 | recipes plugin | versioned tuned recipes that run out of the box on top of `teia` | on PyPI, with its own version |
 | wrapper plugin | the wrappers of one external library, under that library's license | on PyPI or as a tagged repository |
-| private plugin | components still on test, private to their author | never |
+| private workshop | components still on test and tuned wiring: a plugin inside its own repository, a read-only source of copies for projects | never |
 
 ## Contracts
 
@@ -47,18 +47,21 @@ Walk-through: a researcher starts a private project as a plugin, builds a new co
 | wrapper used by several projects | its own wrapper plugin, licensed like the library it wraps |
 | baseline config and glue | the research plugin that runs it |
 | reference leaf of a component | the component's home |
-| evalmodule of a task | `teia`, beside the task contract |
+| evalmodule of a capture family, shared by every task that captures those atoms | `teia`, beside the task contracts |
 | format datamodule: one standard on-disk format read into a `teia` task's boundary A, with default augmentation | `teia`, one per task |
 | `linear_probe` netmodule of a task ([core/task](core/task.md#linear-probe)) | `teia`, one per task |
-| any other wiring, and every tuned recipe | the project that tuned it, arsenal, or a recipes plugin |
+| `callbacks/fitness`: checkpoint and early stopping on the reserved `val/fitness` key that evalmodules publish | `teia`, in the core system groups |
+| `callbacks/online`: checkpoint on the episodic return that `OnlineMetricsCallback` logs, for stream-mode tasks with no validation | `teia`, in the core system groups |
+| any other wiring, and every tuned recipe | the project that tuned it, the private workshop, or a recipes plugin |
 
 A baseline is building blocks plus the config that reproduces one paper's setup. The blocks follow their own row of the table, and the config stays in the project.
 
-`teia` ships the machinery and promises no architecture. Wiring enters `teia` only when the contract or the data format determines it. A choice made to perform well (a backbone, a fusion, a graph construction, a learning rate) stays with the project that made it.
+`teia` ships the machinery and promises no architecture. Wiring enters `teia` only when the contract or the data format determines it. A choice made to perform well (a backbone, a fusion, a graph construction, a learning rate, a precision, weight averaging) stays with the project that made it.
 
 ### Reuse
 
-- A component that speaks the language is reused by installing its home at a tagged version. It is never copied.
+- A component that speaks the language is reused by installing its home at a tagged version. Two installed packages never ship it twice.
+- A project may hold a frozen copy of workshop code. The copy lives under the project's package, keeps the provenance mark it was taken with, and is the project's code from then on.
 - Code that does not speak the language is wrapped once. Before writing a wrapper, look for an installed component whose docstring names the same upstream ([docstrings](docstrings.md)).
 - A home that disappears or stops working with the current `teia` is forked, and the fork becomes the new home.
 
@@ -88,15 +91,18 @@ A project is ready to publish when:
 3. `teia plugin check --publish` reports no error ([plugin](plugin.md)).
 4. Every baseline's upstream commit is recorded, together with how the baseline was run.
 
+Frozen copies taken from a private workshop need no step at publication, since the project never depended on the workshop. A copy under a copyleft license binds the project to that license from the day it was taken.
+
 ## Extending
 
-A new research project starts as a plugin from day one ([plugin](plugin.md)). A component moves into `teia` when it is generic, tested, permissively licensed and used by more than one project, and the move is released as a minor version ([stability](stability.md)). It moves with its reference leaf, and the wiring that used it stays with the project that wrote it.
+A new research project starts as a plugin from day one ([plugin](plugin.md)). A component moves into `teia` when it is generic, tested, permissively licensed and used by more than one project, and the move is released as a minor version ([stability](stability.md)). It moves with its reference leaf, and the wiring that used it stays with the project that wrote it. The move follows a deliberate review of the workshop with the author, and no tool performs it unattended.
 
 ## Constraints
 
-- A component MUST have exactly one home, and a package MUST NOT ship a copy of a component another package owns.
+- A component MUST have exactly one home among installed packages, and a package MUST NOT ship a component another installed package owns. A project's frozen copy of workshop code is its own component.
 - A published plugin MUST NOT depend on an unreleased package.
 - `teia` MUST NOT contain code under a copyleft license.
 - A wrapper MUST record its upstream repository, commit and license.
 - Every component `teia` ships MUST have a reference leaf in `teia`.
 - `teia` MUST NOT ship a tuned recipe, nor a netmodule other than `linear_probe` ([core/task](core/task.md#constraints)).
+- A project or plugin that copies a config from another package MUST give the copy a name of its own, prefixed with the project name (`pcb_vision_default`), so the original can evolve while the project stays pinned to its copy.

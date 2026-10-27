@@ -23,7 +23,7 @@ Field names are content-named, never positional; see [structure](structure.md) f
 
 ## Map
 
-- `teia.base.fields`: `FIELD_VOCAB`, the authoritative field inventory.
+- `teia.base.fields`: `FIELD_VOCAB`, the shared structure-typed vocabulary, plus the fields registered by task contracts ([task](task.md#field-registration)).
 - `teia.base.protocols`: `DatamoduleProtocol`.
 - Producers: collate nodes in `teia.node.data.collate.*`. Consumers: objectives and net nodes, checked by the [dry run](../core/module/dry_run.md).
 
@@ -69,7 +69,7 @@ GPU transforms and dtype conversion happen on data-graph `batch`-phase nodes. No
 
 ## Extending
 
-To add a field, register it in `FIELD_VOCAB` with its structural type, then emit it from a collate node under `teia.node.data.collate.*`. Reuse an existing field before adding one.
+To add a field shared across tasks, register it in `FIELD_VOCAB` with its structural type. A field only one family of tasks uses (the interactive `reward`, `terminated`, `next_obs_state`, ...) is declared by the contract instead, which registers it ([task](task.md#field-registration)). Then emit it from a collate node under `teia.node.data.collate.*`. Reuse an existing field before adding one.
 
 ## Constraints
 
@@ -77,4 +77,3 @@ To add a field, register it in `FIELD_VOCAB` with its structural type, then emit
 - A `batch.*` reference with no producer MUST fail fast: `ValueError` when the module is built against the datamodule (`batch in_key … missing from datamodule batch_meta()`), or `AttributeError` on the first batch.
 - `teia.base` MUST own only the field vocabulary and structural typing. Collate nodes live in `teia.node.data.collate.*`.
 - `list`/`str` fields (`path`, `ori_shape`, `ratio_pad`) are not JIT-compatible. A batch containing them cannot use `torch.compile fullgraph=True` or `torch.jit.trace`. Only detection-family fields are exempt.
-

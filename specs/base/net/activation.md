@@ -35,7 +35,7 @@ A loss reads explicit `pred.*` and `batch.*` inputs and returns scalar tensors u
 
 ### ActionActivation
 
-The torch-only sub-protocol for activations that sample an action. It extends `BaseActivation` with `sample(*logits, deterministic, generator) -> ActionSample`. Concrete action activations live in the component libraries.
+The torch-only sub-protocol for activations that sample an action. It extends `BaseActivation` with `sample(*logits, deterministic, generator) -> ActionSample(action, log_prob, entropy)`, where `action` is the distribution-space sample. In stream mode the capture slice calls `sample(deterministic=...)`, stochastic while training and greedy in eval (an activation without `sample` uses `activation`), and the captured action goes to the engine, which maps it to simulator units. Concrete action activations live in the component libraries.
 
 ## Extending
 
@@ -48,4 +48,3 @@ To add a route, subclass `BaseActivation` (or `ActionActivation`) in `teia.node.
 - `postprocess` MUST NOT be overridden, and MUST return one flat atom dict per sample.
 - An activation MUST NOT declare a prediction kind.
 - A kernel MUST be defined inline on its class.
-

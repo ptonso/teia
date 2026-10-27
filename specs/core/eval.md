@@ -91,6 +91,7 @@ The executor builds the graph with the data graph's resolver ([data_graph](data_
 - `eval.*` reads in-memory results;
 - `meta.*` reads the manifest;
 - `log.<column>` reads the per-epoch logger series;
+- `episodes.<name>` reads the ended-episode records of a stream-mode eval cycle: one vector entry per ended episode, with `<name>` one of the `runner.episode_sums` keys without its `item.` prefix, `length`, or `ended_by` (the index of the `runner.boundary` key that ended the episode);
 - everything else reads a store column.
 
 Intermediate `eval.*` values live in memory for the pass. `run_offline_eval` is the post-train and post-test entry point, and `teia eval` is the standalone one.

@@ -1,6 +1,6 @@
 # Run baselines
 
-A research project compares its method with existing ones. The comparison is fair when every method is scored on the same split by the same evaluation, and Teia's evalmodule guarantees that for anything that produces the task's capture atoms. What remains to decide for each baseline is how much else to share, and where its code lives. Most baselines deserve little effort; the one or two closest to the user's method deserve the most.
+A research project compares its method with existing ones. The comparison is fair when every method is scored on the same split by the same evaluation, and Teia's evalmodule guarantees that for anything that produces the capture atoms of the task's evaluation family. What remains to decide for each baseline is how much else to share, and where its code lives. Most baselines deserve little effort; the one or two closest to the user's method deserve the most.
 
 ## Choose how each baseline runs
 

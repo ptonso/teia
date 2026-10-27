@@ -18,7 +18,7 @@ These specs describe the contracts a contributor must respect.
 
 1. [base/structure](base/structure.md): the structure axis and value types.
 2. [base/batch](base/batch.md): the field vocabulary at the data↔net seam.
-3. [base/data/nodes](base/data/nodes.md): the six data node ABCs, phases, stages and kernels.
+3. [base/data/nodes](base/data/nodes.md): the seven data node ABCs (the engine included), phases, stages and kernels.
 4. [base/net/nodes](base/net/nodes.md): `TeiaNode` and the build hooks.
 5. [base/net/activation](base/net/activation.md): activation and loss bases.
 6. [base/eval/nodes](base/eval/nodes.md): metric, view and comparison ABCs.
@@ -38,11 +38,6 @@ These specs describe the contracts a contributor must respect.
 
 **Component libraries.** Where a component lives and what it must obey.
 
-1. [data/layout](data/layout.md): the six data-node kind folders and the authoring patterns.
+1. [data/layout](data/layout.md): the seven data-node kind folders and the authoring patterns.
 2. [net/layout](net/layout.md), [net/types](net/types.md): `fan × assumes` placement, and the types across a forward boundary and the head → activation → loss route.
 3. [docstrings](docstrings.md): the provenance docstring every component carries.
-
-**In flight.** Migrations from the current code to these specs, in order:
-
-1. [delta/config-boundary](delta/config-boundary.md): tuned wiring leaves `teia`, the `linear_probe` arrives for the tasks whose parts exist, and `graph-node-cls` moves to the TU format. Release 0.2.0.
-2. [delta/probe-coverage](delta/probe-coverage.md): the grid objective, the remaining objective promotions, and a format datamodule, probe and demo for every other task.

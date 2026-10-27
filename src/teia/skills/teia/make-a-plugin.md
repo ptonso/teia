@@ -16,7 +16,8 @@ Start every new project this way. An existing project with a root `conf/` and lo
     task/<task>.py                       task contracts the project introduces
     conf/
       node/<graph>/<kind>/<name>.yaml   leaf                      -> node/<graph>/<kind>@...=<name>
-      <graph>module/<task>/<name>.yaml  module                    -> <graph>module=<task>/<name>
+      {data,net}module/<task>/<name>.yaml  module                 -> <graph>module=<task>/<name>
+      evalmodule/<family>/<profile>.yaml   evaluation, new families only -> evalmodule=<family>/<profile>
       task/<task>.yaml                  preset, new tasks only    -> task=<task>
   conf/                                  local overrides only; never shipped
 ```

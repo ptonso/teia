@@ -1,6 +1,6 @@
 # Start from a task
 
-This is the shortest road in Teia. A task carries a datamodule, a network, an evaluation and tuned run settings that were chosen to work together, so a run needs little beyond the task's name and the location of the data:
+This is the shortest road in Teia. A task carries a datamodule for one standard data format, a `linear_probe` network and an evaluation that fit together, so a run needs little beyond the task's name and the location of the data. The probe is a one-layer network that proves the data and the contract work end to end. It is not meant to perform, and Teia ships no other netmodule:
 
 ```bash
 teia train task=<task> data_root=<dir>
@@ -38,4 +38,4 @@ Try the real pre-flight and one batch before a long run ([validate in layers](SK
 teia train task=<task> data_root=<dir> --dry-run
 ```
 
-Data problems show up here as reader errors that name the path or column at fault. Then run for real ([run](run.md)) and read `eval/summary.yaml` in the run directory for the headline numbers. Report the run directory, the numbers, and the choices the task made for the user (module names from `teia config show task=<task>`), since those are what the next level of work would change.
+Data problems show up here as reader errors that name the path or column at fault. Then run for real ([run](run.md)) and read `eval/summary.yaml` in the run directory for the headline numbers. Report the run directory, the numbers, that they come from the linear probe, and the choices the task made for the user (module names from `teia config show task=<task>`). A model that should perform is a netmodule the project writes next, starting from the probe ([write-config](write-config.md)).

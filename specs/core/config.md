@@ -26,7 +26,7 @@ Scenario: `teia train task=vision-cls netmodule=vision-cls/resnet18_pets node/ne
 
 - **group**: a Hydra config group listed as a primary `optional … : null` (or `: default`) entry in the root `config.yaml`.
 - **node leaf**: one component config, a `_target_` plus parameters with no wiring, under `node/<graph>/<kind>/`.
-- **module**: a wired graph preset under `<graph>module/<task>/<name>.yaml` that mounts node leaves and sets their `in` and `out`.
+- **module**: a wired graph preset that mounts node leaves and sets their `in` and `out`: `datamodule/<task>/<name>.yaml`, `netmodule/<task>/<name>.yaml` or `evalmodule/<family>/<profile>.yaml`, where a family is the capture schema the evaluation scores ([task](task.md#evaluation-families)).
 - **mount**: a module's defaults entry `/node/<graph>/<kind>@<alias>: <leaf>`, placing a leaf at `<graph>module.<alias>`.
 - **task preset**: `task/<task>.yaml`, a `# @package _global_` overrider ([task](task.md)).
 - **dim-ref**: an `out` shape token resolved against the datamodule's `meta()` at build time (`pred.logits: [num_classes]`).
@@ -36,7 +36,7 @@ Scenario: `teia train task=vision-cls netmodule=vision-cls/resnet18_pets node/ne
 
 - The root `config.yaml` and the system defaults: `teia/core/conf/` (`trainer`, `runtime`, `callbacks`, `loggers`, `train`, `test`, `infer`, `export`).
 - Node leaves: `conf/node/{data,net,eval}/*`, one reference leaf per component in the package that owns it.
-- Modules and tasks: `conf/{datamodule,netmodule,evalmodule}/<task>/*` and `conf/task/*`. For each task it owns, `teia` ships the preset, one format datamodule, the evalmodule and `netmodule/<task>/linear_probe`; projects add their own modules ([task](task.md)). Shared fragments live in `conf/{netmodule,evalmodule}/_shared/`.
+- Modules and tasks: `conf/{datamodule,netmodule}/<task>/*`, `conf/evalmodule/<family>/*` and `conf/task/*`. For each task it owns, `teia` ships the preset, one format datamodule and `netmodule/<task>/linear_probe`, and one evalmodule per capture family; projects add their own modules ([task](task.md)). Shared fragments live in `conf/{netmodule,evalmodule}/_shared/`.
 - Composition and validation code: `teia.core.config`, `teia.core.runtime.composer`, `teia.core.runtime.validate`.
 
 ## Contracts
@@ -144,7 +144,8 @@ Composition searches several layers with the same group layout: the core skeleto
 
 ### data_root
 
-- **The only dataset-location key.** Dataset location is the top-level `data_root=…`, with no aliases. The engine resolves it relative to the project dir (a file path collapses to its parent, and a missing path raises) and passes it to the datamodule as its `data_root` kwarg. Reader and transform nodes resolve their node-level `root` under it. Streaming datamodules that declare `requires_data_root = False` need none.
+- **The only dataset-location key.** Dataset location is the top-level `data_root=…`, with no aliases. The engine resolves it relative to the project dir (a file path collapses to its parent, and a missing path raises) and passes it to the datamodule as its `data_root` kwarg. Reader and transform nodes resolve their node-level `root` under it. Every datamodule needs it: a stream-mode datamodule's engine reads its world from it.
+- **Registered worlds.** In stream mode `data_root` also takes `<scheme>:<id>` (`isaaclab:Isaac-Cartpole-v0`, `gym:CartPole-v1`): a lowercase scheme, a colon and an id that does not start with a path separator. Teia does not check such a value against the file system and the engine node validates the scheme and the id; a path form names an assets folder the engine loads. The datamodule receives the value unchanged.
 - **`data=` and `data_dir=` are rejected.** Before composition, the composer fails with "use `data_root=<path>`".
 - **Path-valued module selections are rejected.** A module-group selection whose value looks like a path (`datamodule=/x/data.yaml`) is rejected with the same hint.
 
@@ -159,14 +160,14 @@ It never duplicates the package tree. `teia train` snapshots only the project ov
 ## Extending
 
 - **A component config:** place a leaf under `conf/node/<graph>/<kind>/` naming its `_target_`, then mount it from a module.
-- **A module:** add it to the matching `<graph>module/<task>/` folder ([task](task.md)).
+- **A module:** add it to the matching `{data,net}module/<task>/` folder, or to the `evalmodule/<family>/` folder of its capture family ([task](task.md)).
 - **A system variant:** add an option to its system group, such as `trainer/vision.yaml`.
 
 ## Constraints
 
 - Fields MUST be content-named (`batch.image`, `feat.pooled`), never positional. See [base/batch](../base/batch.md).
 - Every group a user swaps MUST be a primary entry of the root defaults, or a mount whose final package address is overridable as `<group>@<address>=<option>`.
-- A node leaf MUST NOT carry a `# @package` header, `in` or `out`. A packaged module MUST NOT carry a `_target_` and MUST live under `<graph>module/<task>/`. This is checked by `teia config lint`.
+- A node leaf MUST NOT carry a `# @package` header, `in` or `out`. A packaged module MUST NOT carry a `_target_` and MUST live under `{data,net}module/<task>/` or `evalmodule/<family>/`. This is checked by `teia config lint`.
 - A mount alias MUST NOT contain `_group_` or `_name_`: Hydra substitutes those inside package paths, so `@km_by_risk_group_view` silently mounts elsewhere. This is checked by `teia config lint`.
 - A task preset MUST follow [task](task.md#constraints).
 - A config path MUST exist in only one layer. A run that selects a path found in more than one layer fails before training.

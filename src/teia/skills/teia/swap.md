@@ -1,6 +1,6 @@
 # Swap components and build experiments
 
-Once a task runs, most experiments are variations on it: another architecture, another optimizer, a different resolution, a learning-rate sweep. Teia lets you express each as a command-line change while everything else stays as the task set it. The contract does the safety work: any module in the task's folders speaks the task's contract, so it is a valid replacement by construction.
+Once a task runs, most experiments are variations on it: another architecture, another optimizer, a different resolution, a learning-rate sweep. Teia lets you express each as a command-line change while everything else stays as the task set it. The contract does the safety work: any module in the task's folders speaks the task's contract, so it is a valid replacement by construction. Teia ships only the `linear_probe` netmodule of each task, so the architectures to swap between are the project's own, each written from the probe ([write-config](write-config.md)).
 
 ## The forms
 
@@ -8,8 +8,8 @@ Selections and overrides are ordinary Hydra syntax, given after the command, and
 
 | Goal | Form |
 |---|---|
-| Use a task's defaults | `task=<task>` |
-| Replace a whole graph with another module for the task | `netmodule=<task>/<name>`, and likewise `datamodule=` or `evalmodule=` |
+| Run a task's probe | `task=<task>` |
+| Replace a whole graph with another module for the task | `netmodule=<task>/<name>`, and likewise `datamodule=`. An evaluation is `evalmodule=<family>/<profile>` (for example `cls/default`), valid for any task whose contract captures that family's atoms |
 | Replace one node inside a module and keep its wiring | `node/<graph>/<purpose>@<module>.<alias>=<leaf>`, for example `node/net/head@netmodule.head=<leaf>` |
 | Replace a leaf mounted at the module's root (an optimizer, for instance) | `node/net/<purpose>@netmodule=<leaf>` |
 | Point at the dataset | `data_root=<dir>` |

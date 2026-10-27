@@ -4,7 +4,7 @@ Related: **Read first** [architecture](architecture.md). **See also** [ecosystem
 
 ## Overview
 
-`teia` ships as one distribution with three layers that change in different ways. The **language** (the engine and the base classes) almost never grows and is the part everything depends on. **Task contracts** form an open set: new tasks are added freely, and a task, once released, is frozen together with its evalmodule and its `linear_probe`, because they have become a shared language between the data graph, the net graph and the evaluation. The **zoo** (components with their reference leaves, and the format datamodules) also grows freely, and its behavior and defaults improve over time. `teia` ships no tuned recipe, so no architecture result is promised ([ecosystem](ecosystem.md#where-code-lives)).
+`teia` ships as one distribution with three layers that change in different ways. The **language** (the engine and the base classes) almost never grows and is the part everything depends on. **Task contracts** form an open set: new tasks are added freely, and a task, once released, is frozen together with its evaluation family and its `linear_probe`, because they have become a shared language between the data graph, the net graph and the evaluation. The **zoo** (components with their reference leaves, and the format datamodules) also grows freely, and its behavior and defaults improve over time. `teia` ships no tuned recipe, so no architecture result is promised ([ecosystem](ecosystem.md#where-code-lives)).
 
 The version number tells a user one thing: whether a project that ran on the previous version still runs. Changed numbers are not a breaking change. A run reproduces exactly from its config snapshot and the pinned `teia` version.
 
@@ -13,7 +13,7 @@ Scenario: a release changes the default `dropout` of the `MLP` component, and wi
 ## Language
 
 - **language**: `teia.base`, `teia.core`, the batch-field vocabulary, the CLI and the config and run layouts.
-- **task contract**: a class in `teia.task` typing what crosses the two graph boundaries ([base/task](base/task.md)), shipped with its preset, evalmodule and `linear_probe` ([core/task](core/task.md)).
+- **task contract**: a class in `teia.task` typing what crosses the two graph boundaries ([base/task](base/task.md)), shipped with its preset, evaluation family and `linear_probe` ([core/task](core/task.md)).
 - **zoo**: `teia.node`, `teia.callbacks`, their reference leaves under `src/teia/conf/node/`, the format datamodules and the system groups under `src/teia/conf/`.
 - **released**: published on PyPI under a version number.
 - **breaking change**: a change after which a config, project or run snapshot that worked on the previous version raises an error.
@@ -21,7 +21,7 @@ Scenario: a release changes the default `dropout` of the `MLP` component, and wi
 ## Map
 
 - Language: `teia.base`, `teia.core`, `src/teia/core/conf/`.
-- Task contracts: `teia.task`, with `conf/task/`, `conf/evalmodule/<task>/` and `conf/netmodule/<task>/linear_probe.yaml`.
+- Task contracts: `teia.task`, with `conf/task/`, `conf/evalmodule/<family>/` and `conf/netmodule/<task>/linear_probe.yaml`.
 - Zoo: `teia.node`, `teia.callbacks`, `conf/node/`, `conf/datamodule/<task>/`, the system groups under `conf/`.
 
 ## Contracts
@@ -31,7 +31,7 @@ Scenario: a release changes the default `dropout` of the `MLP` component, and wi
 | Layer | Grows | Once released |
 |---|---|---|
 | language | rarely | changes only in a breaking release |
-| task contracts, their evalmodules and `linear_probe` netmodules | freely, one per task | frozen: fields, types, route and the probe's wiring change only with the contract |
+| task contracts, their evaluation families and `linear_probe` netmodules | freely, a contract and a probe per task, an evalmodule per capture family | frozen: fields, types, route and the probe's wiring change only with the contract, and an evalmodule only with the capture schema it scores |
 | zoo | freely | behavior and defaults may change in any minor release |
 
 ### Version numbers
@@ -57,7 +57,7 @@ A task that needs different fields, types or routes is a new contract with its o
 
 ## Extending
 
-To add a component, add it in the zoo with its reference leaf and release it as a minor version. To add a task, add its contract, preset, evalmodule, format datamodule and `linear_probe` together ([core/task](core/task.md#extending)). To change a default, change the component or its leaf and list it under "Results may change". To change a released task contract, add a new contract instead, except before `1.0.0` ([version numbers](#version-numbers)).
+To add a component, add it in the zoo with its reference leaf and release it as a minor version. To add a task, add its contract, preset, evaluation family, format datamodule and `linear_probe` together ([core/task](core/task.md#extending)). To change a default, change the component or its leaf and list it under "Results may change". To change a released task contract, add a new contract instead, except before `1.0.0` ([version numbers](#version-numbers)).
 
 ## Constraints
 

@@ -27,6 +27,7 @@ _PRESETS: dict[str, dict[str, Any]] = {
 
 
 def normalize_kernel(value: torch.Tensor, params: dict[str, Any]) -> tuple[torch.Tensor, dict[str, Any]]:
+    """``clip(((x * scale) - mean) / std)`` per index of ``axis``; each step is skipped when its parameter is ``None``."""
     x = value.to(torch.float32)
     if params["scale"] is not None:
         x = x * params["scale"]

@@ -83,6 +83,8 @@ class TaskContract:
     meta: ClassVar[dict[str, Dim | Names]] = {}
     batch: ClassVar[dict[str, Tensor | Ragged | Blob]] = {}   # keyed by field name, no "batch." prefix
     capture: ClassVar[dict[str, Tensor | Ragged | Blob]] = {} # keyed by "route.atom"
+    engine_atom: ClassVar[str | None] = None                  # the capture atom sent to the engine (stream mode)
+    feedback: ClassVar[dict[str, str]] = {}                   # "route.atom" -> item field name (stream mode)
 
     def targets(self) -> list[str]: ...          # batch fields with target=True
     def check_net(self, in_keys: set[str], capture_map: Mapping[str, str]) -> None: ...
@@ -104,6 +106,25 @@ class TaskContract:
   It raises on the first mismatch. List fields (absent from `batch_meta`) and `Blob` fields are presence-checked only. Dtypes are enforced when atoms are captured, not here.
 
 A check raises `TaskContractError`. The message names the contract class, the key, and what was expected and found.
+
+### Feedback
+
+In stream mode the seam runs both ways: the netmodule's captured atoms return into the data stream ([core/datamodule](../core/datamodule.md#stream-mode)). `engine_atom` names the capture atom the runner sends to the engine, and `feedback` maps a `capture` atom to the item field name it is written under; nothing else returns. The two are independent: a policy that samples an unbounded action sends the clipped action to the engine and feeds the raw sample back for its log-probability.
+
+```python
+class RlContinuous(TaskContract):                         # on-policy (PPO)
+    meta = {"obs_state_dim": Dim(), "action_dim": Dim()}
+    batch = {**TRANSITION, **ON_POLICY}
+    capture = {"policy.action": Tensor("B *"), "policy.env_action": Tensor("B *"), "policy.log_prob": Tensor("B"), "policy.value": Tensor("B")}
+    engine_atom = "policy.env_action"
+    feedback = {"policy.action": "action", "policy.log_prob": "log_prob", "policy.value": "value"}
+```
+
+The runner writes `item.action`, `item.log_prob` and `item.value` into each stored row, and the datamodule collates them like any item field. `check_net` also checks that `engine_atom` and every `feedback` key are declared `capture` atoms and that a stream-mode contract sets `engine_atom`.
+
+### Field registration
+
+A contract registers its `batch` field names when its class is created, so a field a collate emits is legal because the active contract declares it. `FIELD_VOCAB` keeps only structure-typed vocabulary shared across tasks ([batch](batch.md)); interactive fields (`reward`, `terminated`, `next_obs_state`, ...) and shared field sets such as `TRANSITION` live with the contracts that use them, never in `teia.base` or `teia.core`.
 
 ### Contract authoring
 
@@ -133,7 +154,7 @@ To add a task:
 - `teia.base.task` MUST NOT ship a concrete contract and MUST NOT import `teia.node` or `teia.core`.
 - `teia.core` MUST NOT import a concrete contract or branch on a contract's class. It instantiates `task._target_` and calls the three checks only.
 - A contract MUST describe only the two boundaries. It MUST NOT name `feat.*`, `pred.*`, `act.*`, `post.*`, `loss.*` or `eval.*` keys.
+- Every `feedback` key and the `engine_atom` MUST be declared `capture` atoms, and every `feedback` value a field name declared in `batch`.
 - Every `capture` key MUST have the form `route.atom`. Every `Ragged.index` MUST name a key declared in the same section, with the same `target` flag.
 - Every shape symbol that is not `B`, `N`, `*` or a literal MUST be either a declared `meta` key or a free name that repeats consistently.
 - Contract checks MUST be covered by `tests/test_task_contract.py`, and every shipped task by `tests/test_task_conformance.py`.
-

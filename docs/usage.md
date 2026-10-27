@@ -5,7 +5,7 @@ Teia is a **Hydra-composed deep-learning runtime**. You do not write a training 
 Three graphs make a run: a **datamodule** (raw data to typed `batch.*` fields), a **netmodule** (fields to predictions and losses) and an **evalmodule** (captured predictions to metrics and plots). A **task** is a contract over what they hand each other.
 
 ```bash
-./demo/digits.sh
+./demo/vision-cls.sh
 ```
 
 ## The mental model

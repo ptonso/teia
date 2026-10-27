@@ -38,7 +38,25 @@ Scenario: swapping the label reader and box parser turns a YOLO dataset into a C
 
 `_target_` is usually injected by an `@alias` group default. Component kwargs are the keys outside the reserved envelope set `{_target_, in, out, phase, stage, weight, optimizer, detach, aux_in, …}`. The composed config is always flat.
 
-The kind (`read`, `transform`, `join`, `reshape`, `collate`, `write`) is inferred from the component's ABC and never written as a wrapper key. `phase` is one of `source`, `preprocess`, `augment`, `target`, `collate`, `writer`, and `stage` one of `plan`, `item`, `stream`, `batch`. Both have per-kind defaults and are written only to override. `stream` is never a default, and a node opts in. The recipes below use a compact shorthand, and the canonical form is the flat envelope with the component bound at `@alias`.
+The kind (`read`, `engine`, `transform`, `join`, `reshape`, `collate`, `write`) is inferred from the component's ABC and never written as a wrapper key. `phase` is one of `source`, `preprocess`, `augment`, `target`, `collate`, `writer`, and `stage` one of `plan`, `item`, `stream`, `batch`. Both have per-kind defaults and are written only to override. `stream` is never a default, and a node opts in. The recipes below use a compact shorthand, and the canonical form is the flat envelope with the component bound at `@alias`.
+
+### Collate fan
+
+A collate with several `out` keys pairs `in` and `out` by position and expands, at parse time, into one single-field collate per pair (`<node>_<field>`, same component and params), so every field keeps its own node for structure typing, prefixing and export. Fields that share a collate and a dtype are written once:
+
+```yaml
+floats:
+  _target_: teia.node.data.collate.tensor.Stack
+  in:  [item.obs_state, item.action, item.reward]
+  out: [batch.obs_state, batch.action, batch.reward]
+ints:
+  _target_: teia.node.data.collate.tensor.Stack
+  dtype: int64
+  in:  [item.episode_id, item.index]
+  out: [batch.episode_id, batch.index]
+```
+
+A mismatch between the number of `in` and `out` keys is a build error. A collate with one `out` and several `in` keys is unchanged: one field built from several inputs.
 
 ### Provenance and fan-out
 
@@ -114,7 +132,7 @@ To add a format, compose existing readers, parse transforms and a join under the
 - The graph MUST validate at build: topological sort, and rejection of missing producers, cycles and duplicate produced keys.
 - Phase MUST be monotonic: a `batch`-stage node never feeds an `item`-stage node, and an `augment` node never sits on the export or eval path.
 - The structural type at each `collate` seam MUST be checked against the consumer.
+- A collate fan MUST pair `in` and `out` by position and expand into single-field collates at parse time.
 - A node's kind MUST be inferred from its ABC, never declared as a wrapper key.
 - Stateful transforms MUST fit on train only, with state persisted and reloaded, never re-fit on eval or infer.
 - Every `batch.*` field MUST be structure-typed.
-

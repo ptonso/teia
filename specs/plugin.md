@@ -85,7 +85,7 @@ Environment rules, which need the plugin installed:
 
 ### Shared namespace
 
-A private plugin maintained together with `teia` may ship its Python inside the `teia.*` namespace, so its components move into `teia` with no path change. It is checked with `--namespace teia`, which skips `package`. A published plugin always uses its own package.
+A private plugin maintained together with `teia` (the workshop, inside its own repository) may ship its Python inside the `teia.*` namespace, so its components move into `teia` with no path change. It is checked with `--namespace teia`, which skips `package`. A project never installs such a plugin: it holds frozen copies under its own package. A published plugin always uses its own package.
 
 ## Extending
 

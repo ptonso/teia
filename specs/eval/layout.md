@@ -8,7 +8,7 @@ The canonical filesystem and Hydra group layout for every component in `teia.nod
 
 Components are grouped by ABC kind and then by pairing, never by domain. A confusion matrix over image classes and one over tabular classes are the same component, and a mask-IoU matcher and a box-IoU matcher are the same component with different kernels. "Computer vision" is a config wiring, not a structural property of the code.
 
-Scenario: to add a novel survival statistic, add one `Metric` subclass under `metric/aligned/`, one leaf conf, and one entry in the task's evalmodule. No engine change is needed.
+Scenario: to add a novel survival statistic, add one `Metric` subclass under `metric/aligned/`, one leaf conf, and one entry in the family's evalmodule. No engine change is needed.
 
 ## Language
 
@@ -17,7 +17,7 @@ Terms owned by [base/eval/nodes](../base/eval/nodes.md): eval node, eval workspa
 - **kind folder**: one of `metric/`, `view/`, `compare/`, each housing every concrete component of that ABC regardless of domain. `kernel/` is a fourth folder but not a kind, since kernels are sub-nodes.
 - **payload geometry**: the shape a view draws (ranked bar, matrix heatmap, curve bundle, …), the hard constraint views are grouped by.
 - **leaf**: one component's config file, one `_target_`.
-- **evalmodule**: a task's wired eval graph preset, `evalmodule/<task>/<profile>`.
+- **evalmodule**: a wired eval graph preset for one capture family, `evalmodule/<family>/<profile>` ([core/task](../core/task.md#evaluation-families)).
 
 ## Map
 
@@ -85,14 +85,14 @@ Views are grouped by payload geometry, and there are nine: `ranked_bar`, `matrix
 |---|---|---|
 | **leaf** | `conf/node/eval/{metric,view,kernel}/<name>.yaml` (the `compare/` defaults are `core/conf/compare/default.yaml`) | mounted by an evalmodule |
 | **shared fragment** | `conf/evalmodule/_shared/run.yaml` (training curves, LR curves, target summary), `decision_rule.yaml` (the `threshold_optimization` metric on `split: val` plus `decision_rule_table`) | mounted `@_here_` by an evalmodule, never selected |
-| **evalmodule** | `conf/evalmodule/<task>/<profile>.yaml` in the component library | `evalmodule=<task>/<profile>`, or a task preset |
+| **evalmodule** | `conf/evalmodule/<family>/<profile>.yaml` in the component library | `evalmodule=<family>/<profile>`, or a task preset |
 
 Every classification evalmodule mounts `decision_rule`, so threshold optimization is on by default. The feature is the presence of the node: `~evalmodule.threshold_optimization ~evalmodule.decision_rule_table` switches it off. The metric reruns the nodes that accept a decision rule into `eval/threshold-opt/` ([core/eval](../core/eval.md#after-pass-hook)).
 
 An evalmodule is packaged at `evalmodule` and mounts leaves by alias, exactly like a netmodule ([core/config](../core/config.md)):
 
 ```yaml
-# conf/evalmodule/vision-det/default.yaml
+# conf/evalmodule/det/default.yaml
 defaults:
   - /evalmodule/_shared/run@_here_
   - /node/eval/metric@match: instance_match

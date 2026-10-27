@@ -14,6 +14,8 @@ Task contracts are the one place a task name is code: `teia.task.vision_cls.Visi
 ## Language
 
 - **task**: a named contract plus its module folders and preset ([core/task](core/task.md)). The name is a user choice.
+- **signal**: a named tensor an engine emits (a joint position, a contact force, a stock reward term). The graph turns signals into observations, rewards and termination flags.
+- **command**: a per-environment target drawn by Teia and redrawn on episode resets (a goal velocity), read by transforms.
 - **route**: the first segment of a capture key (`capture.<route>.<atom>`), the namespace a task contract files predictions under.
 - **structure**: the topology of a datum's domain.
 - **recipe**: a config (task preset, module, dataset) where domain words are correct.
@@ -29,7 +31,7 @@ How each subsystem avoids domain words.
 | activation routing | atoms. An activation returns content-named atom dicts, and the netmodule's `capture:` map files them under the contract's routes. There is no prediction kind. | [capture_map](core/module/capture_map.md) |
 | eval graph (`teia.node.eval`) | ABC kind × pairing. The layout spec forbids a domain folder and a domain-named class. | [eval/layout](eval/layout.md) |
 | capture (`teia.core.capture`) | contract spec type. The lane and encoder follow `Tensor`/`Ragged`/`Blob` and the array dtype only. | [core/eval](core/eval.md) |
-| tasks (`teia.task`, `conf/task`, `conf/<graph>module/<task>`) | the user's task choice. Contract classes, preset files and module folders carry task names correctly. | [core/task](core/task.md) |
+| tasks (`teia.task`, `conf/task`, `conf/{data,net}module/<task>`) | the user's task choice. Contract classes, preset files and the data and net module folders carry task names correctly. | [core/task](core/task.md) |
 
 ## Contracts
 
