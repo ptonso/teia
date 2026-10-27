@@ -1,0 +1,19 @@
+# @package _global_
+defaults:
+  - override /datamodule: rl-discrete/gymnasium
+  - override /netmodule: rl-discrete/linear_probe
+  - override /evalmodule: rl/default
+  - override /callbacks: online
+  - _self_
+
+data_root: gym:CartPole-v1
+task:
+  _target_: teia.task.rl_discrete.RlDiscrete
+seed: 0
+trainer:
+  max_epochs: 1
+train:
+  run_validation: false
+  run_test_after_train: true
+test:
+  weights: last

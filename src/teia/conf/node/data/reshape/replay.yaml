@@ -1,0 +1,7 @@
+_target_: teia.core.datamodule.interactive.replay.ReplayBuffer
+capacity: 1000000
+gamma: 0.99
+warmup_steps: 10000
+train_frequency: 1
+updates_per_cycle: 1
+n_step: 1

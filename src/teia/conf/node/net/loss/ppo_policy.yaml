@@ -1,0 +1,3 @@
+_target_: teia.node.net.loss.ppo_policy.PpoPolicyLoss
+clip_coef: 0.2
+normalize_advantage: false

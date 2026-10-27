@@ -1,0 +1,17 @@
+defaults:
+  - /evalmodule/_shared/run@_here_
+  - /node/eval/metric@episodes: episode_aggregate
+  - /node/eval/view@episode_table: table
+  - _self_
+
+episodes:
+  in: [episodes.reward, episodes.length, episodes.ended_by]
+  out: eval.policy.episodes
+episode_table:
+  title: Eval Episodes
+  filename: episodes.csv
+  in:
+    rows: eval.policy.episodes:rows
+summary:
+  _target_: teia.node.eval.view.summary.Summary
+  in: [eval.policy.episodes]

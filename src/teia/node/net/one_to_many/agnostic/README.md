@@ -9,6 +9,7 @@ works regardless of what the input represents structurally.
 **Members**
 - `split.py` — `Split`. Fans a single input out to N identical outputs — the generic multi-task
   tap used when several downstream heads each need their own copy of the same upstream feature.
+- `squashed_gaussian.py` — `SquashedGaussianSample`. Reparameterized tanh-squashed Gaussian sample and its log-probability from a mean and a log standard deviation.
 
 **Placement.** A component belongs here iff it declares exactly 1 `in` and ≥2 `out`, and the input
 places no structural requirement. If the input instead requires a spatial grid, it is

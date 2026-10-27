@@ -43,7 +43,8 @@ vision = ["torchvision", "timm"]
 audio = ["torchaudio", "soundfile"]
 tabular = ["sqlalchemy", "pyarrow"]
 fid = ["pytorch-fid==0.3.0"]
-all = ["pyteia[vision,audio,tabular,fid]"]
+rl = ["gymnasium>=1.1"]
+all = ["pyteia[vision,audio,tabular,fid,rl]"]
 
 [project.urls]
 Homepage = "https://github.com/ptonso/teia"

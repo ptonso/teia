@@ -1,0 +1,24 @@
+defaults:
+  - /optim@_here_: adam_1e3
+  - /node/net/head@mean_head: linear
+  - /node/net/branch@log_std: parameter
+  - /node/net/head@value_head: linear
+  - /node/net/act@act: gaussian_box
+  - /node/net/loss@policy_loss: ppo_policy
+  - /node/net/loss@value_loss: value
+  - _self_
+
+mean_head: {init_gain: 0.01, in: batch.obs_state, out: {pred.mean: [action_dim]}}
+log_std: {in: batch.obs_state, out: {pred.log_std: [action_dim]}}
+value_head: {in: batch.obs_state, out: {pred.value: [1]}}
+act:
+  low: -1.0
+  high: 1.0
+  in: [pred.mean, pred.log_std]
+  out: {act.action: null, act.env_action: null, act.log_prob: null}
+policy_loss:
+  in: [pred.mean, pred.log_std, batch.action, batch.log_prob, batch.advantage]
+  out: {loss.policy: null}
+  weight: 1.0
+value_loss: {in: [pred.value, batch.return_], out: {loss.value: null}, weight: 0.5}
+capture: {policy.action: act.action, policy.env_action: act.env_action, policy.log_prob: act.log_prob, policy.value: pred.value}

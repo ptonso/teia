@@ -1,0 +1,19 @@
+# @package _global_
+defaults:
+  - override /datamodule: rl-continuous-replay/gymnasium
+  - override /netmodule: rl-continuous-replay/linear_probe
+  - override /evalmodule: rl/default
+  - override /callbacks: online
+  - _self_
+
+data_root: gym:Pendulum-v1
+task:
+  _target_: teia.task.rl_continuous_replay.RlContinuousReplay
+seed: 0
+trainer:
+  max_epochs: 1
+train:
+  run_validation: false
+  run_test_after_train: true
+test:
+  weights: last

@@ -8,6 +8,7 @@
 - `concat.py`: `ConcatFusion`. Concatenates N inputs along an axis, with optional flatten to `[B, D]`.
 - `sum.py`: `SumFusion`. Element-wise sum of N same-shape inputs.
 - `gated.py`: `GatedFusion`. Learned softmax-gated weighted sum of N same-shape inputs.
+- `q_critic.py`: `QCritic`. Scalar Q-value from a state and an action: an MLP over their concatenation (no hidden layer gives a linear critic).
 - `node_pack.py` - `NodePack`. Scatters flat per-node rows `[M, D]` into padded `[B, N, D]` node features by a node mask and appends a projection of each node's box. Every input is a fixed-shape tensor, so it needs no structure.
 - `node_unpack.py` - `NodeUnpack`. Selects the real nodes of a padded `[B, N, C]` prediction, `[M, C]`.
 

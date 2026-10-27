@@ -1,0 +1,19 @@
+defaults:
+  - /optim@_here_: adam_1e3
+  - /node/net/head@q_head: linear
+  - /node/net/act@act: q_argmax
+  - /node/net/loss@loss_q: dqn
+  - _self_
+
+q_head: {in: batch.obs_state, out: {pred.q: [num_actions]}}
+q_head_target:
+  in: batch.next_obs_state
+  out: {pred.q_target: [num_actions]}
+  bind: {from: q_head, mode: frozen, sync: {_target_: teia.core.module.sync.HardSync, every: 500}}
+act: {in: pred.q, out: {act.action: null}}
+loss_q:
+  in: [pred.q, batch.action, batch.reward, pred.q_target, batch.terminated, batch.n_step_discount]
+  out: {loss.q: null}
+  detach: [pred.q_target]
+  weight: 1.0
+capture: {policy.action: act.action}

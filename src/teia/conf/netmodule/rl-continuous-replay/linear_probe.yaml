@@ -1,0 +1,62 @@
+defaults:
+  - /node/net/head@mean_head: linear
+  - /node/net/head@log_std_head: linear
+  - /node/net/act@actor_sample: squashed_gaussian_sample
+  - /node/net/act@actor_sample_next: squashed_gaussian_sample
+  - /node/net/head@q1: q_critic
+  - /node/net/head@q2: q_critic
+  - /node/net/branch@log_alpha: parameter
+  - /node/net/act@act: tanh_gaussian_box
+  - /node/net/loss@critic_loss: sac_critic
+  - /node/net/loss@actor_loss: sac_actor
+  - /node/net/loss@alpha_loss: sac_alpha
+  - _self_
+
+mean_head: {optimizer: actor, in: batch.obs_state, out: {pred.mean: [action_dim]}}
+log_std_head: {optimizer: actor, in: batch.obs_state, out: {pred.log_std: [action_dim]}}
+actor_sample: {in: [pred.mean, pred.log_std], out: {pred.action_pi: [action_dim], pred.logp_pi: null}}
+
+mean_head_next:
+  in: batch.next_obs_state
+  out: {pred.mean_next: [action_dim]}
+  bind: {from: mean_head, mode: tied}
+log_std_head_next:
+  in: batch.next_obs_state
+  out: {pred.log_std_next: [action_dim]}
+  bind: {from: log_std_head, mode: tied}
+actor_sample_next: {in: [pred.mean_next, pred.log_std_next], out: {pred.action_next: [action_dim], pred.logp_next: null}}
+
+q1: {hidden: [], optimizer: critic, in: [batch.obs_state, batch.action], out: {pred.q1_buf: [1]}}
+q2: {hidden: [], optimizer: critic, in: [batch.obs_state, batch.action], out: {pred.q2_buf: [1]}}
+q1_pi:
+  in: [batch.obs_state, pred.action_pi]
+  out: {pred.q1_pi: [1]}
+  bind: {from: q1, mode: tied}
+q2_pi:
+  in: [batch.obs_state, pred.action_pi]
+  out: {pred.q2_pi: [1]}
+  bind: {from: q2, mode: tied}
+q1_target:
+  in: [batch.next_obs_state, pred.action_next]
+  out: {pred.q1_targ: [1]}
+  bind: {from: q1, mode: frozen, sync: {_target_: teia.core.module.sync.EmaSync, tau: 0.005}}
+q2_target:
+  in: [batch.next_obs_state, pred.action_next]
+  out: {pred.q2_targ: [1]}
+  bind: {from: q2, mode: frozen, sync: {_target_: teia.core.module.sync.EmaSync, tau: 0.005}}
+
+log_alpha: {optimizer: alpha, in: batch.obs_state, out: {pred.log_alpha: null}}
+act: {in: [pred.mean, pred.log_std], out: {act.action: null}}
+
+critic_loss:
+  in: [pred.q1_buf, pred.q2_buf, batch.reward, pred.q1_targ, pred.q2_targ, pred.logp_next, batch.terminated, batch.n_step_discount, pred.log_alpha]
+  out: {loss.critic: critic}
+  detach: [pred.q1_targ, pred.q2_targ, pred.logp_next]
+  weight: 1.0
+actor_loss: {in: [pred.q1_pi, pred.q2_pi, pred.logp_pi, pred.log_alpha], out: {loss.actor: actor}, weight: 1.0}
+alpha_loss: {in: [pred.logp_pi, pred.log_alpha], out: {loss.alpha: alpha}, weight: 1.0}
+optimizers:
+  - {name: actor, _target_: torch.optim.Adam, lr: 3.0e-4}
+  - {name: alpha, _target_: torch.optim.Adam, lr: 1.0e-3}
+  - {name: critic, _target_: torch.optim.Adam, lr: 1.0e-3}
+capture: {policy.action: act.action}

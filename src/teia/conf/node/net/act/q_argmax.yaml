@@ -1,0 +1,5 @@
+_target_: teia.node.net.activation.q_argmax.QArgmaxActivation
+epsilon:
+  start: 1.0
+  end: 0.05
+  duration: 10000

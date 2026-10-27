@@ -1,0 +1,3 @@
+_target_: teia.node.net.activation.gaussian_box.GaussianBoxActivation
+low: null
+high: null

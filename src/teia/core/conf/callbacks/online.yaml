@@ -1,0 +1,27 @@
+summary:
+  _target_: teia.core.callbacks.GradSafeRichModelSummary
+  max_depth: 1
+
+lr_monitor:
+  _target_: lightning.pytorch.callbacks.LearningRateMonitor
+  logging_interval: step
+  log_momentum: true
+  log_weight_decay: true
+
+checkpoint:
+  _target_: lightning.pytorch.callbacks.ModelCheckpoint
+  dirpath: checkpoints
+  filename: best
+  monitor: env/episode/reward
+  mode: max
+  save_top_k: 1
+  save_last: true
+
+online_metrics:
+  _target_: teia.core.interactive.OnlineMetricsCallback
+
+items:
+- ${callbacks.summary}
+- ${callbacks.lr_monitor}
+- ${callbacks.checkpoint}
+- ${callbacks.online_metrics}

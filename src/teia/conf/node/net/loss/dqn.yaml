@@ -1,0 +1,3 @@
+_target_: teia.node.net.loss.dqn.DqnLoss
+gamma: 0.99
+huber: true

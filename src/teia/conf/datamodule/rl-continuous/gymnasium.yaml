@@ -1,0 +1,41 @@
+defaults:
+  - /node/data/engine@env: gymnasium
+  - /node/data/transform@norm: normalize
+  - /node/data/reshape@roll: rollout
+  - /node/data/collate@floats: stack
+  - /node/data/collate@ints: stack_int64
+  - _self_
+
+env:
+  num_envs: 4
+  stage: stream
+  out:
+    item.obs_state: observation
+    item.reward: reward
+    item.terminated: terminated
+    item.truncated: truncated
+norm:
+  stats: running
+  clip: 10.0
+  in: item.obs_state
+  out: item.obs_state
+roll:
+  in: {reward: item.reward, terminated: item.terminated, truncated: item.truncated, value: item.value}
+  out: [item.return_, item.advantage]
+  stage: stream
+floats:
+  in: [item.obs_state, item.action, item.reward, item.terminated, item.truncated, item.log_prob, item.value, item.advantage, item.return_]
+  out: [batch.obs_state, batch.action, batch.reward, batch.terminated, batch.truncated, batch.log_prob, batch.value, batch.advantage, batch.return_]
+ints:
+  in: [item.episode_id]
+  out: [batch.episode_id]
+runner:
+  _target_: teia.core.datamodule.interactive.sync.SyncRunner
+  boundary: [item.terminated, item.truncated]
+  reset_policy: per_env
+  episode_id: item.episode_id
+  episode_sums: [item.reward]
+  total_env_steps: 20000
+  eval_episodes: 10
+num_workers: 0
+batch_size: null
