@@ -190,7 +190,3 @@ A group directory (one holding `group.yaml`, see [runtime](runtime.md#replicated
 - Run artifacts MUST NOT contain absolute paths.
 - The walltime report MUST be emitted by every run.
 - A group evaluation MUST run metric nodes per replica and view nodes once, and MUST NOT feed a reduced result to a metric.
-
-## History
-
-- [2026-10-17 replicated runs and a cross-run reducer](../logs/2026-10-17_replicated-runs-and-reducer.md): group reduction replaces the `seed_aggregate` comparison.

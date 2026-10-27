@@ -133,7 +133,3 @@ To add a metric, subclass `Metric` under `teia.node.eval.metric.<pairing>/`, imp
 - An eval node MUST NOT consume a composite record and names atomic `capture.*`, `batch.*`, `meta.*` or `log.*` keys.
 - Monitor names published by the active graph MUST be unique within a split, and a duplicate is a hard pre-flight error.
 - A kernel MUST be a pure function and MUST NOT declare `in`/`out`.
-
-## History
-
-- [2026-10-17 replicated runs and a cross-run reducer](../../logs/2026-10-17_replicated-runs-and-reducer.md): views take optional std siblings.

@@ -84,7 +84,3 @@ The command prints the best trial's overrides, one per line.
 - Parsing MUST use Hydra's override parser, and the sweep MUST NOT define its own grammar.
 - A trial whose run has no series named by the objective MUST raise naming the run directory.
 - Unit tests (`tests/test_sweep.py`) MUST cover the split, grid and random plans, scoring in both modes, and the descriptor.
-
-## History
-
-- [2026-10-17 the sweep command](../logs/2026-10-17_sweep-command.md): override-driven search with config-declared budget and objective.

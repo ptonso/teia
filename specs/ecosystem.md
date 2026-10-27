@@ -100,7 +100,3 @@ A new research project starts as a plugin from day one ([plugin](plugin.md)). A 
 - A wrapper MUST record its upstream repository, commit and license.
 - Every component `teia` ships MUST have a reference leaf in `teia`.
 - `teia` MUST NOT ship a tuned recipe, nor a netmodule other than `linear_probe` ([core/task](core/task.md#constraints)).
-
-## History
-
-- [2026-10-24 machinery-first configs](logs/2026-10-24_machinery-first-configs.md): why `teia` ships wiring only where the contract or the format determines it.

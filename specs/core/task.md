@@ -135,7 +135,3 @@ To add a task in a plugin, follow the same steps in the plugin ([plugin](../plug
 - A module folder `<graph>module/<task>/` MUST name a task that has a contract in `teia.task` or a preset in `task/`. A folder named `_shared` holds fragments only. Config lint enforces both.
 - A module MUST NOT select another module, and a task preset MUST NOT select another task.
 - A task MUST have at most one preset across all installed packages. A package that does not ship it adds modules to the task instead.
-
-## History
-
-- [2026-10-24 machinery-first configs](../logs/2026-10-24_machinery-first-configs.md): why a preset selects a format datamodule and a `linear_probe`, and why the probe's wiring lives in a module and not in the preset.

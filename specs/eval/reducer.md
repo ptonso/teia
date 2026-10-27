@@ -61,7 +61,3 @@ The group report is the reduced pass of the group's evalmodule, written to `<gro
 - Metric nodes MUST NOT receive a reduced result as input. Metrics run per replica and views read the reduced results.
 - A group with zero finished replicas MUST fail fast naming the group directory.
 - Unit tests (`tests/test_eval_reduce.py`) MUST cover scalar, array, aligned rows, unaligned rows, string equality, pass-through and one replica.
-
-## History
-
-- [2026-10-17 replicated runs and a cross-run reducer](../logs/2026-10-17_replicated-runs-and-reducer.md): one shape-based reducer with sibling fields.

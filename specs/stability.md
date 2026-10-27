@@ -67,7 +67,3 @@ To add a component, add it in the zoo with its reference leaf and release it as 
 - A release that can change results MUST list each such change under "Results may change" in `CHANGELOG.md`.
 - The language MUST NOT import the zoo statically ([architecture](architecture.md)).
 - A `linear_probe` netmodule MUST change only when its task contract changes.
-
-## History
-
-- [2026-10-24 machinery-first configs](logs/2026-10-24_machinery-first-configs.md): why tuned presets left the zoo and the probe is frozen with its contract.

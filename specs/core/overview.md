@@ -61,7 +61,3 @@ Custom `LightningDataModule` and `LightningModule` targets, custom config groups
 - Core MUST NOT contain a metric, plot, table or comparison implementation.
 - Core MUST be Lightning-only, with no model-owned stage runners.
 - `teia export` is ONNX-first. `teia infer` always writes a canonical prediction artifact and may also write io-specific outputs.
-
-## History
-
-- [2026-10-24 machinery-first configs](../logs/2026-10-24_machinery-first-configs.md): a task's defaults are a format datamodule, a linear probe and an evalmodule.

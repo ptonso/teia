@@ -73,9 +73,3 @@ teia export --run-dir runs/... export.output_dir=/tmp/bundle
 - `test`, `infer` and `export` MUST NOT compose from the live project tree when `--run-dir` is provided.
 - `--from-run-dir` MUST be rejected when `runtime.n_runs` is above 1.
 - `teia train` MUST run post-train test and the eval graph when a test split exists, unless disabled by config or CLI. Post-train export runs only when enabled by config or `--export`.
-
-## History
-
-- [2026-10-17 replicated runs and a cross-run reducer](../logs/2026-10-17_replicated-runs-and-reducer.md): `train` replicates on `runtime.n_runs`, and `eval` accepts a group directory.
-- [2026-10-17 the sweep command](../logs/2026-10-17_sweep-command.md): the `sweep` command.
-- [2026-10-24 machinery-first configs](../logs/2026-10-24_machinery-first-configs.md): examples select a project netmodule over the linear probe.

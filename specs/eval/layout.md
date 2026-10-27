@@ -168,7 +168,3 @@ Place a new component by ABC kind, then by pairing for a metric or by payload ge
 - A metric given a `reference` whose `extractor` differs from its own extractor's `identity` MUST raise.
 - The `summary` view MUST raise when two inputs publish the same scalar key with different values; `namespace: true` writes each key as `<input atom>.<field>`.
 - Every leaf module MUST expose exactly one public component, and its `_target_` MUST be the canonical `teia.node.eval.<kind>.<component>.<ClassName>` path.
-
-## History
-
-- [2026-10-17 replicated runs and a cross-run reducer](../logs/2026-10-17_replicated-runs-and-reducer.md): `seed_aggregate` removed, views read std siblings.

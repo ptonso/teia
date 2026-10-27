@@ -81,7 +81,3 @@ Deterministic behavior is runtime-wide. `runtime.determinism.mode` applies to al
 - A failed replica MUST stop the group and MUST NOT leave a `group.yaml` with status `ok`.
 - Optional dependency checks are lazy: only the encountered non-core target closure is validated before stage build, and suggestions are enriched only after a dependency-shaped failure.
 - Instantiation errors MUST include the dotted config path and the attempted `_target_`. A hook object that is neither callable nor exposes `run()` emits a `UserWarning` and is skipped.
-
-## History
-
-- [2026-10-17 replicated runs and a cross-run reducer](../logs/2026-10-17_replicated-runs-and-reducer.md): the group directory and per-replica seeds.

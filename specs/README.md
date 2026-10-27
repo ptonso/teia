@@ -46,5 +46,3 @@ These specs describe the contracts a contributor must respect.
 
 1. [delta/config-boundary](delta/config-boundary.md): tuned wiring leaves `teia`, the `linear_probe` arrives for the tasks whose parts exist, and `graph-node-cls` moves to the TU format. Release 0.2.0.
 2. [delta/probe-coverage](delta/probe-coverage.md): the grid objective, the remaining objective promotions, and a format datamodule, probe and demo for every other task.
-
-**Logs.** [logs/index](logs/index.md): the reasoning behind each change.

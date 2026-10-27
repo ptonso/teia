@@ -68,7 +68,3 @@ A decoder is objective-side. The input bundle ends at `feat.*`, and a decoder is
 - Objective aliases MUST be self-namespaced to avoid collisions across composed objectives.
 - The input bundle MUST end at `feat.*`, and terminal outputs (including reconstruction and generation) belong to objectives.
 - The fused assignment loss node MUST NOT be decomposed into a shared `assign.*` producer.
-
-## History
-
-- [2026-10-24 machinery-first configs](../../logs/2026-10-24_machinery-first-configs.md): the probe body as the one shared netmodule fragment.

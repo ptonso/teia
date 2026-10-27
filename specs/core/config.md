@@ -177,9 +177,3 @@ It never duplicates the package tree. `teia train` snapshots only the project ov
 - A `key=value` override whose dotted key is absent from the composed config emits a `UserWarning` (typo guard).
 - `data=`, `data_dir=` and path-valued module selections MUST fail before composition with a `data_root=` hint.
 - `runtime.n_runs` MUST be an integer of at least 1, and any other value MUST raise before training starts.
-
-## History
-
-- [2026-10-17 replicated runs and a cross-run reducer](../logs/2026-10-17_replicated-runs-and-reducer.md): `runtime.n_runs` as the one replication entry.
-- [2026-10-24 machinery-first configs](../logs/2026-10-24_machinery-first-configs.md): which modules and leaves `teia` ships.
-- [2026-10-17 the sweep command](../logs/2026-10-17_sweep-command.md): `sweep` keys.

@@ -82,7 +82,3 @@ Every run is described by four independent axes, each with one home.
 - Structure is the single data ≡ compute axis, and a `batch.*` field is typed by structure, not modality.
 - Fields MUST be content-named (`batch.image`, `batch.text`, `batch.numerical`, `feat.pooled`), never positional (`batch.x`).
 - The Python taxonomy encodes hard constraints only. Purpose (`stem`, `encoder`, `head`) and application (`det`, `survival`) are conf concerns and MUST NOT become Python folders or engine-visible roles.
-
-## History
-
-- [2026-10-24 machinery-first configs](logs/2026-10-24_machinery-first-configs.md): why config ownership shrank to reference leaves, evalmodules, format datamodules and probes.

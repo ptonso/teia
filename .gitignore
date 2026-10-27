@@ -49,3 +49,8 @@ demo/.teia-cache/
 # Local virtual environments
 .venv*/
 tests/*-runs/dataset/
+
+# Decision logs are private
+specs/delta/*
+specs/logs/*
+src/teia/skills/teia/logs/*
