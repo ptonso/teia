@@ -1,0 +1,10 @@
+# @package _global_
+defaults:
+  - override /datamodule: vision-graph-node-cls/tu_node_images
+  - override /netmodule: vision-graph-node-cls/linear_probe
+  - override /evalmodule: cls/default
+  - _self_
+
+task:
+  _target_: teia.task.vision_graph_node_cls.VisionGraphNodeCls
+seed: 0

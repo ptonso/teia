@@ -1,0 +1,16 @@
+defaults:
+  - /netmodule/_shared/linear_probe@_here_
+  - /node/net/head@head_cls: linear
+  - /node/net/head@head_box: linear
+  - /node/net/loss@loss: grid_det
+  - /node/net/act@act: grid_det
+  - _self_
+
+input: {image_size: 32, grid: 4}
+stem: {in: batch.image}
+head: {out: {pred.obj: ["${netmodule.input.grid}", "${netmodule.input.grid}"]}}
+head_cls: {in: feat.flat, out: {pred.cls: [num_classes, "${netmodule.input.grid}", "${netmodule.input.grid}"]}}
+head_box: {in: feat.flat, out: {pred.box: [4, "${netmodule.input.grid}", "${netmodule.input.grid}"]}}
+loss: {in: [pred.obj, pred.cls, pred.box, batch.bboxes, batch.cls, batch.batch_idx], out: {loss.det: null}, weight: 1.0}
+act: {in: [pred.obj, pred.cls, pred.box], out: {act.boxes: null, act.scores: null}}
+capture: {det.boxes: post.act.boxes, det.score: post.act.score, det.category: post.act.category}

@@ -1,0 +1,56 @@
+defaults:
+  - /node/data/reader@imgs: files_reader
+  - /node/data/reader@masks: files_reader_masks
+  - /node/data/join@pair: key_join
+  - /node/data/transform@meta: yolo_meta
+  - /node/data/transform@decode: decode_image_with_ori_shape
+  - /node/data/transform@decode_mask: decode_mask
+  - /node/data/transform@resize: resize_image
+  - /node/data/transform@resize_mask: resize_mask
+  - /node/data/transform@normalize: normalize_image
+  - /node/data/collate@col_image: stack_images
+  - /node/data/collate@col_masks: semantic_masks
+  - /node/data/collate@col_ori_shape: list_field
+  - _self_
+
+imgs:
+  out: stream.img
+masks:
+  out: stream.mask
+pair:
+  in: [stream.img, stream.mask]
+  out: [item.img_path, item.mask_path]
+meta:
+  in: item.mask_path
+  phase: target
+  stage: plan
+decode:
+  in: item.img_path
+  out: [item.image, item.ori_shape]
+decode_mask:
+  in: item.mask_path
+  out: item.mask
+resize:
+  in: item.image
+  out: item.image
+resize_mask:
+  in: item.mask
+  out: item.mask
+normalize:
+  in: batch.image
+  out: batch.image
+  stage: batch
+col_image:
+  in: item.image
+  out: batch.image
+  stage: batch
+col_masks:
+  in: item.mask
+  out: batch.masks
+  stage: batch
+col_ori_shape:
+  in: item.ori_shape
+  out: batch.ori_shape
+  stage: batch
+batch_size: 16
+image_size: ${netmodule.input.image_size}

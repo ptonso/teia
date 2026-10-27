@@ -57,7 +57,7 @@ class EvalPreflightGateTests(unittest.TestCase):
     def test_wiring_gate_accepts_a_real_bundle_graph(self) -> None:
         import yaml
 
-        graph = load_evalmodule("vision-cls", run_nodes=True)
+        graph = load_evalmodule("cls", run_nodes=True)
         _validate_eval_deps({"evalmodule": graph})
         _validate_eval_wiring({"evalmodule": graph})  # must not raise
 

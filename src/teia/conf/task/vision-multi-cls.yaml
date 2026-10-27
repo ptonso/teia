@@ -1,0 +1,10 @@
+# @package _global_
+defaults:
+  - override /datamodule: vision-multi-cls/image_folder
+  - override /netmodule: vision-multi-cls/linear_probe
+  - override /evalmodule: multi-cls/default
+  - _self_
+
+task:
+  _target_: teia.task.vision_multi_cls.VisionMultiCls
+seed: 0

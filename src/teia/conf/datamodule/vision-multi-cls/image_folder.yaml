@@ -1,0 +1,36 @@
+defaults:
+  - /node/data/reader@imgs: image_folder_reader_multi_label
+  - /node/data/transform@enc: multi_hot_labels
+  - /node/data/transform@decode: decode_image
+  - /node/data/transform@resize: resize_image
+  - /node/data/transform@normalize: normalize_image
+  - /node/data/collate@col_image: stack_images
+  - /node/data/collate@col_cls: multi_hot_classes
+  - _self_
+
+imgs:
+  out: [item.img_path, item.label_names]
+enc:
+  in: item.label_names
+  out: item.cls
+  phase: target
+decode:
+  in: item.img_path
+  out: item.image
+resize:
+  in: item.image
+  out: item.image
+normalize:
+  in: batch.image
+  out: batch.image
+  stage: batch
+col_image:
+  in: item.image
+  out: batch.image
+  stage: batch
+col_cls:
+  in: item.cls
+  out: batch.cls
+  stage: batch
+batch_size: 64
+image_size: ${netmodule.input.image_size}

@@ -133,6 +133,25 @@ class IoGraphTest(unittest.TestCase):
         self.assertEqual(type(batch).__name__, "Batch__numerical")
         self.assertEqual(tuple(batch.numerical.shape), (2, 4))
 
+    def test_a_collate_with_several_out_keys_fans_into_one_collate_per_field(self):
+        dm = _dm(
+            **_reader(out="item.vec"),
+            copy={"_target_": f"{__name__}.PassThrough", "in": "item.vec", "out": "item.vec2", "stage": "item"},
+            feats={"_target_": f"{__name__}.StackCollate", "in": ["item.vec", "item.vec2"], "out": ["batch.numerical", "batch.count"]},
+        )
+        dm.setup()
+        self.assertIs(dm.batch_type(), compose_batch(["numerical", "count"]))
+        batch = next(iter(dm.train_dataloader()))
+        self.assertEqual(tuple(batch.numerical.shape), (2, 4))
+        self.assertTrue(torch.equal(batch.numerical, batch.count))
+
+    def test_a_collate_fan_pairs_in_and_out_by_position(self):
+        with self.assertRaisesRegex(ValueError, "pairs `in` and `out` by position"):
+            _dm(
+                **_reader(out="item.vec"),
+                feats={"_target_": f"{__name__}.StackCollate", "in": ["item.vec"], "out": ["batch.numerical", "batch.count"]},
+            )
+
     def test_cycle_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "Cycle"):
             _dm(

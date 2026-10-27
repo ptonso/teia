@@ -1,0 +1,11 @@
+defaults:
+  - /netmodule/_shared/linear_probe@_here_
+  - /node/net/act@act: gaussian
+  - /node/net/loss@loss: gaussian_nll
+  - _self_
+
+stem: {in: batch.numerical}
+head: {out: {pred.logits: [num_targets]}}
+act: {in: pred.logits, out: {act.mean: null, act.std: null}}
+loss: {in: [pred.logits, batch.target], out: {loss.reg: null}, weight: 1.0}
+capture: {reg.mean: act.mean, reg.std: act.std}

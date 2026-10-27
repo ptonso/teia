@@ -52,9 +52,9 @@ def _assign(workspace: dict[str, Any], out_key: list[str], result: Any) -> None:
 
 
 def _is_engine_entry(entry: Any) -> bool:
-    from teia.core.datamodule.graph import parse_node
+    from teia.core.datamodule.graph import parse_nodes
 
-    return parse_node("_", entry).kind == "engine" if isinstance(entry, dict) and "_target_" in entry else False
+    return parse_nodes("_", entry)[0].kind == "engine" if isinstance(entry, dict) and "_target_" in entry else False
 
 
 def _as_tuple(value: Any) -> tuple:

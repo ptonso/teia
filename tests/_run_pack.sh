@@ -3,16 +3,19 @@
 # A run passes when it exits 0 and leaves eval/summary.yaml (sweep: sweep.yaml) (RL, whose eval is off: a checkpoint).
 # Output streams live and is also saved to tests/output/<pack>/logs/<name>.log.
 # Usage: bash tests/_run_pack.sh <pack> [teia overrides...]   (from the repo root, inside the env that has teia; TEIA=/path/to/teia overrides the binary)
+# The demo pack runs every demo/*.sh (runs land in demo/runs/demo/<experiment>); pass epochs=1 to keep it short.
 set -uo pipefail
 marker=eval/summary.yaml; [[ "$1" == sweep ]] && marker=sweep.yaml
 
 pack="$1"; shift
 runs_root="tests/output/${pack}/runs/${pack}-tests"
+scripts="tests/${pack}-runs/run/"
+if [[ "$pack" == demo ]]; then runs_root="demo/runs/demo"; scripts="demo/"; fi
 logs="tests/output/${pack}/logs"
 mkdir -p "$logs"
 results=()
 failed=0
-for script in "tests/${pack}-runs/run/"*.sh; do
+for script in "$scripts"*.sh; do
   name="$(basename "$script" .sh)"
   echo "=== $name ==="
   bash "$script" "$@" 2>&1 | tee "$logs/$name.log"

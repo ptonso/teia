@@ -1,4 +1,4 @@
-"""End-to-end proof that the ``vision-cls`` evalmodule runs metric -> view through the real,
+"""End-to-end proof that the ``cls`` evalmodule runs metric -> view through the real,
 composed config and produces real report files, with pinned expected values."""
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from teia.node.eval.metric.aligned.confusion import Confusion
 
 class ClsBundleEndToEndTests(unittest.TestCase):
     def test_bundle_yaml_composes_and_produces_a_valid_graph(self) -> None:
-        graph = load_evalmodule("vision-cls")
+        graph = load_evalmodule("cls")
         records = build_eval_graph(discover_node_entries(graph))
         # Metrics before views (toposort); every node resolved to a real, importable component.
         kinds = [r.kind for r in records]
@@ -35,7 +35,7 @@ class ClsBundleEndToEndTests(unittest.TestCase):
             write_store(root, "test", columns, class_names=class_names)
             write_store(root, "val", columns, class_names=class_names)
 
-            graph = load_evalmodule("vision-cls")
+            graph = load_evalmodule("cls")
             out_dir = root / "eval"
             written = run_eval(root, graph=graph, split="test", out_dir=out_dir)
 

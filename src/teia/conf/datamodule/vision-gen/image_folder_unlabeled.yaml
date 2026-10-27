@@ -1,0 +1,27 @@
+defaults:
+  - /node/data/reader@imgs: image_folder_reader_unlabeled
+  - /node/data/transform@decode: decode_image
+  - /node/data/transform@resize: resize_image
+  - /node/data/collate@col_image: stack_images
+  - /node/data/transform@normalize: normalize_pixel_norm
+  - _self_
+
+imgs:
+  out: [item.img_path, item.label_name]
+decode:
+  in: item.img_path
+  out: item.image
+resize:
+  in: item.image
+  out: item.image
+col_image:
+  in: item.image
+  out: batch.image
+  stage: batch
+normalize:
+  in: batch.image
+  out: batch.image
+  stage: batch
+batch_size: 32
+image_size: ${netmodule.input.image_size}
+pixel_norm: unit

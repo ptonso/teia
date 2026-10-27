@@ -1,0 +1,30 @@
+defaults:
+  - /node/data/reader@auds: audio_folder_reader_multi_label
+  - /node/data/transform@enc: multi_hot_labels
+  - /node/data/transform@decode: decode_audio
+  - /node/data/transform@mel: mel_spectrogram
+  - /node/data/collate@col_audio: stack
+  - /node/data/collate@col_cls: multi_hot_classes
+  - _self_
+
+auds:
+  out: [item.audio_path, item.label_names]
+enc:
+  in: item.label_names
+  out: item.cls
+  phase: target
+decode:
+  in: item.audio_path
+  out: item.waveform
+mel:
+  in: item.waveform
+  out: item.audio
+col_audio:
+  in: item.audio
+  out: batch.audio
+  stage: batch
+col_cls:
+  in: item.cls
+  out: batch.cls
+  stage: batch
+batch_size: 32

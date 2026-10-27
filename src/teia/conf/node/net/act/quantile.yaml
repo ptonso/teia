@@ -1,0 +1,2 @@
+_target_: teia.node.net.activation.quantile.QuantileActivation
+quantiles: [0.1, 0.5, 0.9]

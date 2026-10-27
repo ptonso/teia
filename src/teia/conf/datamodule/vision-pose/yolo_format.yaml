@@ -1,0 +1,79 @@
+defaults:
+  - /node/data/reader@imgs: files_reader
+  - /node/data/reader@lbls: files_reader_txt_labels
+  - /node/data/join@pair: key_join
+  - /node/data/transform@meta: yolo_meta
+  - /node/data/transform@box: parse_yolo_pose
+  - /node/data/transform@decode: decode_image
+  - /node/data/transform@letterbox: letterbox_pose
+  - /node/data/transform@normalize: normalize_image
+  - /node/data/collate@col_image: stack_images
+  - /node/data/collate@col_boxes: concat_boxes
+  - /node/data/collate@col_cls: concat_classes
+  - /node/data/collate@col_batch_idx: batch_index
+  - /node/data/collate@col_keypoints: concat_keypoints
+  - /node/data/collate@col_ori_shape: list_field
+  - /node/data/collate@col_ratio_pad: list_field
+  - /node/data/collate@col_path: list_field
+  - _self_
+
+imgs:
+  out: stream.img
+lbls:
+  out: stream.lbl
+pair:
+  in: [stream.img, stream.lbl]
+  out: [item.img_path, item.label_path]
+meta:
+  in: item.label_path
+  phase: target
+  stage: plan
+box:
+  in: item.label_path
+  out: [item.boxes, item.box_cls, item.keypoints]
+  phase: target
+decode:
+  in: item.img_path
+  out: item.image
+letterbox:
+  in: [item.image, item.boxes, item.keypoints]
+  out: [item.image, item.boxes, item.keypoints, item.ratio_pad, item.ori_shape]
+normalize:
+  pixel_norm: unit
+  in: batch.image
+  out: batch.image
+  stage: batch
+col_image:
+  in: item.image
+  out: batch.image
+  stage: batch
+col_boxes:
+  in: item.boxes
+  out: batch.bboxes
+  stage: batch
+col_cls:
+  in: item.box_cls
+  out: batch.cls
+  stage: batch
+col_batch_idx:
+  in: item.boxes
+  out: batch.batch_idx
+  stage: batch
+col_keypoints:
+  in: item.keypoints
+  out: batch.keypoints
+  stage: batch
+col_ori_shape:
+  in: item.ori_shape
+  out: batch.ori_shape
+  stage: batch
+col_ratio_pad:
+  in: item.ratio_pad
+  out: batch.ratio_pad
+  stage: batch
+col_path:
+  in: item.img_path
+  out: batch.path
+  stage: batch
+batch_size: 64
+image_size: ${netmodule.input.image_size}

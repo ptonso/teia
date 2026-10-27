@@ -1,0 +1,10 @@
+# @package _global_
+defaults:
+  - override /datamodule: tabular-multi-cls/csv
+  - override /netmodule: tabular-multi-cls/linear_probe
+  - override /evalmodule: multi-cls/default
+  - _self_
+
+task:
+  _target_: teia.task.tabular_multi_cls.TabularMultiCls
+seed: 0

@@ -1,0 +1,11 @@
+defaults:
+  - /netmodule/_shared/linear_probe@_here_
+  - /node/net/act@act: sigmoid
+  - /node/net/loss@loss: bce
+  - _self_
+
+stem: {in: batch.numerical}
+head: {out: {pred.logits: [num_classes]}}
+act: {in: pred.logits, out: {act.probs: null}}
+loss: {in: [pred.logits, batch.cls], out: {loss.cls: null}, weight: 1.0}
+capture: {cls.scores: act.probs, cls.labels: post.act.labels}

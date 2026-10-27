@@ -1,5 +1,5 @@
 _target_: teia.node.eval.metric.unpaired.frechet_distance.FrechetDistance
-device: cuda
+device: auto
 batch_size: 256
 feature_extractor:
   _target_: teia.node.eval.metric.unpaired.inception.InceptionPool3

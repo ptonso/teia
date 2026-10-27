@@ -1,0 +1,11 @@
+defaults:
+  - /netmodule/_shared/linear_probe@_here_
+  - /node/net/act@act: cox
+  - /node/net/loss@loss: cox
+  - _self_
+
+stem: {in: batch.numerical}
+head: {out: {pred.logits: [1]}}
+act: {in: pred.logits, out: {act.risk: null}}
+loss: {in: [pred.logits, batch.time, batch.event], out: {loss.survival: null}, weight: 1.0}
+capture: {survival.risk: post.act.risk}

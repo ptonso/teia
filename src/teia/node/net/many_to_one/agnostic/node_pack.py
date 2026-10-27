@@ -4,8 +4,8 @@ Node Pack.
 Source: common knowledge
 
 Description:
-  Turns the flat per-node feature rows of a batch of boards (``M = sum N_i`` rows) into a padded
-  ``[B, N, D']`` node-feature tensor, and appends a learned projection of each node's box geometry. It is
+  Turns the flat per-node feature rows of a batch of graphs (``M = sum N_i`` rows) into a padded
+  ``[B, N, D']`` node-feature tensor, and appends a learned projection of each node's attributes (box geometry, features). It is
   the seam between a per-crop encoder and a graph encoder: padded slots stay exactly zero.
 """
 
@@ -21,26 +21,26 @@ from teia.base.net import TeiaNode
 
 
 class NodePack(TeiaNode):
-    """``in: [feat.<rows> [M,D], batch.node_box [B,N,4], batch.node_mask [B,N]]``  ``out: feat.<nodes> [B,N,D+box_dim]``
+    """``in: [feat.<rows> [M,D], batch.<attrs> [B,N,A], batch.node_mask [B,N]]``  ``out: feat.<nodes> [B,N,D+attr_dim]``
 
-        h_k = [x_{cumsum(mask)_k - 1}, MLP(box_k)] · mask_k
+        h_k = [x_{cumsum(mask)_k - 1}, MLP(attr_k)] · mask_k
 
-    Rows fill the real slots in row-major node order, so board ``i`` receives its own ``N_i`` rows.
+    Rows fill the real slots in row-major node order, so graph ``i`` receives its own ``N_i`` rows.
 
     Args:
-        box_dim: Width of the box projection concatenated to the features.
+        attr_dim: Width of the attribute projection concatenated to the features.
     """
 
-    def build_module(self, box_dim: int = 32, **kwargs: Any) -> None:
-        box_features = int(self.in_shape[1][-1])
-        self.box_proj = nn.Sequential(nn.Linear(box_features, box_dim), nn.GELU(), nn.Linear(box_dim, box_dim))
+    def build_module(self, attr_dim: int = 32, **kwargs: Any) -> None:
+        attr_features = int(self.in_shape[1][-1])
+        self.attr_proj = nn.Sequential(nn.Linear(attr_features, attr_dim), nn.GELU(), nn.Linear(attr_dim, attr_dim))
 
-    def forward(self, rows: Tensor, boxes: Tensor, node_mask: Tensor) -> Tensor:
+    def forward(self, rows: Tensor, attrs: Tensor, node_mask: Tensor) -> Tensor:
         node_mask = node_mask.bool()
 
         # slot k takes row cumsum(mask)_k - 1; padded slots are zeroed
         row = node_mask.flatten().cumsum(0).sub(1).clamp(0, rows.shape[0] - 1)
         feats = rows[row].view(*node_mask.shape, -1) * node_mask.unsqueeze(-1)
 
-        # append the projected box
-        return torch.cat([feats, self.box_proj(boxes) * node_mask.unsqueeze(-1)], dim=-1)
+        # append the projected attributes
+        return torch.cat([feats, self.attr_proj(attrs) * node_mask.unsqueeze(-1)], dim=-1)

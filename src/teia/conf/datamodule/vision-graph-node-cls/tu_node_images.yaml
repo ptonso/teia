@@ -1,0 +1,60 @@
+# TU Dortmund graph files plus one image per node (nodes/<node_id>.png), edges from <DS>_<graphs.edges>.txt. Formats: teia.node.data.reader.tu, ...extension.node_images
+defaults:
+  - /node/data/reader@graphs: tu
+  - /node/data/reader/extension@graphs.extension: node_images
+  - /node/data/transform@adjacency: edge_adjacency
+  - /node/data/transform@enc: name_list_encode
+  - /node/data/transform@decode: decode_node_images
+  - /node/data/transform@normalize: normalize_image
+  - /node/data/collate@col_node_image: stack_node_images
+  - /node/data/collate@col_node_feat: pad_node_rows
+  - /node/data/collate@col_adj: pad_adjacency
+  - /node/data/collate@col_mask: node_mask
+  - /node/data/collate@col_cls: flat_node_classes
+  - /node/data/collate@col_batch_idx: node_batch_index
+  - _self_
+
+graphs:
+  out: [item.node_feat, item.edges, item.labels, item.node_image_paths]
+adjacency:
+  in: [item.edges, item.node_feat]
+  out: item.adj
+  phase: target
+enc:
+  in: item.labels
+  out: item.cls
+  phase: target
+decode:
+  in: item.node_image_paths
+  out: item.node_image
+  phase: target
+normalize:
+  in: batch.node_image
+  out: batch.node_image
+  stage: batch
+  pixel_norm: unit
+col_node_image:
+  in: item.node_image
+  out: batch.node_image
+  stage: batch
+col_node_feat:
+  in: item.node_feat
+  out: batch.node_feat
+  stage: batch
+col_adj:
+  in: item.adj
+  out: batch.adj
+  stage: batch
+col_mask:
+  in: item.node_feat
+  out: batch.node_mask
+  stage: batch
+col_cls:
+  in: item.cls
+  out: batch.cls
+  stage: batch
+col_batch_idx:
+  in: item.node_feat
+  out: batch.batch_idx
+  stage: batch
+batch_size: 4

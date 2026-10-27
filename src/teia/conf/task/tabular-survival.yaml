@@ -1,0 +1,10 @@
+# @package _global_
+defaults:
+  - override /datamodule: tabular-survival/csv
+  - override /netmodule: tabular-survival/linear_probe
+  - override /evalmodule: survival/default
+  - _self_
+
+task:
+  _target_: teia.task.tabular_survival.TabularSurvival
+seed: 0

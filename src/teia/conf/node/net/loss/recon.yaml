@@ -1,0 +1,4 @@
+_target_: teia.node.net.loss.recon.ReconLoss
+recon_type: l2
+strategy: ${datamodule.pixel_norm}
+sigma: fixed

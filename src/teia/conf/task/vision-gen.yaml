@@ -1,0 +1,10 @@
+# @package _global_
+defaults:
+  - override /datamodule: vision-gen/image_folder_unlabeled
+  - override /netmodule: vision-gen/linear_probe
+  - override /evalmodule: gen/default
+  - _self_
+
+task:
+  _target_: teia.task.vision_gen.VisionGen
+seed: 0

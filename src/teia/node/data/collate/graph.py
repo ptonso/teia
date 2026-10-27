@@ -1,12 +1,12 @@
-"""Graph collates — assemble a batch of boards into node tensors, dense adjacency and a node mask.
+"""Graph collates — assemble a batch of graphs into node tensors, dense adjacency and a node mask.
 
-Contract: one sample is a board with ``N_i`` nodes. Node images are flat-concatenated over the batch
-(``M = sum N_i`` rows), while everything the graph layers read is padded to the largest board of the
+Contract: one sample is a graph with ``N_i`` nodes. Node images and classes are flat-concatenated over the
+batch (``M = sum N_i`` rows), while everything the graph layers read is padded to the largest graph of the
 *batch* (``N = max N_i``), so ``N`` changes from batch to batch and no weight depends on it. ``node_mask``
 is 1 for a real node and 0 for padding, and rows of ``cls`` follow the node order of ``node_mask``
 (``logits[node_mask]`` lines up with ``cls``).
 
-Registers ``node_image``, ``node_box``, ``adj`` and ``node_mask`` in ``teia.base.fields.FIELD_VOCAB`` on
+Registers ``node_image``, ``node_feat``, ``adj`` and ``node_mask`` in ``teia.base.fields.FIELD_VOCAB`` on
 import, and reuses ``cls`` and ``batch_idx``.
 
 Source: common knowledge
@@ -25,7 +25,7 @@ from teia.base.fields import register_field
 from teia.base.data import Collate
 
 register_field("node_image", structure="grid", optional=False)
-register_field("node_box", structure=None, optional=False)
+register_field("node_feat", structure=None, optional=False)
 register_field("adj", structure="graph", optional=False)
 register_field("node_mask", structure=None, optional=False)
 
@@ -42,17 +42,17 @@ class StackNodeImages(Collate):
         return torch.cat(field_batch, 0), {}
 
 
-class PadNodeBoxes(Collate):
-    """``item.node_box[Ni,4] → batch.node_box[B,N,4]`` zero-padded."""
+class PadNodeRows(Collate):
+    """``item.node_feat[Ni,F] → batch.node_feat[B,N,F]`` zero-padded, any row width ``F``."""
 
-    field = "node_box"
+    field = "node_feat"
 
     @staticmethod
     def kernel(field_batch: list[torch.Tensor], params: dict[str, Any]) -> tuple[torch.Tensor, dict[str, Any]]:
         del params
         out = field_batch[0].new_zeros(len(field_batch), max(b.shape[0] for b in field_batch), field_batch[0].shape[1])
-        for i, boxes in enumerate(field_batch):
-            out[i, : boxes.shape[0]] = boxes
+        for i, rows in enumerate(field_batch):
+            out[i, : rows.shape[0]] = rows
         return out, {}
 
 
@@ -73,7 +73,7 @@ class PadAdjacency(Collate):
 
 
 class NodeMask(Collate):
-    """``item.node_box[Ni,4] → batch.node_mask[B,N]`` bool, True for real nodes."""
+    """``item.node_feat[Ni,F] → batch.node_mask[B,N]`` bool, True for real nodes (any per-node tensor gives the sizes)."""
 
     field = "node_mask"
 
@@ -96,7 +96,7 @@ class FlatNodeClasses(Collate):
 
 
 class NodeBatchIndex(Collate):
-    """``item.node_box[Ni,4] → batch.batch_idx[M]`` int64, the board index of each node row."""
+    """``item.node_feat[Ni,F] → batch.batch_idx[M]`` int64, the graph index of each node row."""
 
     field = "batch_idx"
 

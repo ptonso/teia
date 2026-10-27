@@ -1,0 +1,12 @@
+# @package _global_
+defaults:
+  - override /datamodule: vision-inst-seg/yolo_format
+  - override /netmodule: vision-inst-seg/linear_probe
+  - override /evalmodule: inst-seg/default
+  - _self_
+
+task:
+  _target_: teia.task.vision_inst_seg.VisionInstSeg
+seed: 0
+infer:
+  restore: [ori_shape, ratio_pad]

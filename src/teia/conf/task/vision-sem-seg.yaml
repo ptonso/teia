@@ -1,0 +1,12 @@
+# @package _global_
+defaults:
+  - override /datamodule: vision-sem-seg/mask_dir
+  - override /netmodule: vision-sem-seg/linear_probe
+  - override /evalmodule: sem-seg/default
+  - _self_
+
+task:
+  _target_: teia.task.vision_sem_seg.VisionSemSeg
+seed: 0
+infer:
+  restore: [ori_shape]

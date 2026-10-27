@@ -7,7 +7,7 @@ Expected layout: one folder per split under the dataset root, each holding Label
 
 A ``rectangle`` shape gives its box directly, a ``polygon`` gives its axis-aligned bounds. Emits, per
 file, ``(image_path, boxes[N,4] xywh pixels, labels: list[str])``, in this order, plus the fields any
-``extension`` appends (for example ``edges`` from ``LabelmeGraph``). The label of a box is the shape
+``extension`` appends (for example ``edges`` from a graph extension). The label of a box is the shape
 ``label``, optionally renamed through ``class_map``. A label missing from a given ``class_map`` raises.
 
 Source: common knowledge

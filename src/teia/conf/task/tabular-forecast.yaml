@@ -1,0 +1,10 @@
+# @package _global_
+defaults:
+  - override /datamodule: tabular-forecast/window
+  - override /netmodule: tabular-forecast/linear_probe
+  - override /evalmodule: forecast/default
+  - _self_
+
+task:
+  _target_: teia.task.tabular_forecast.TabularForecast
+seed: 0

@@ -1,0 +1,12 @@
+defaults:
+  - /netmodule/_shared/linear_probe@_here_
+  - /node/net/act@act: seg_softmax
+  - /node/net/loss@loss: mask_cross_entropy
+  - _self_
+
+input: {image_size: 32}
+stem: {in: batch.image}
+head: {out: {pred.logits: [num_classes, 8, 8]}}
+act: {in: pred.logits, out: {act.probs: null, act.mask: null}}
+loss: {in: [pred.logits, batch.masks], out: {loss.seg: null}, weight: 1.0}
+capture: {seg.mask: post.act.mask}

@@ -45,11 +45,11 @@ def write_store(run_dir: str | Path, split: str, columns: dict[str, Any], **meta
     return writer.close()
 
 
-def load_evalmodule(task: str, *, run_nodes: bool = False) -> dict[str, Any]:
-    """The composed ``evalmodule`` nodes of ``evalmodule=<task>/default`` (without the shared run nodes by default,
+def load_evalmodule(family: str, *, run_nodes: bool = False) -> dict[str, Any]:
+    """The composed ``evalmodule`` nodes of ``evalmodule=<family>/default`` (without the shared run nodes by default,
     which read logger history a store-only fixture has none of)."""
     with tempfile.TemporaryDirectory() as tmp:
-        composed, _ = compose_overlay_config(project_dir=Path(tmp), overrides=[f"evalmodule={task}/default", "data_root=."])
+        composed, _ = compose_overlay_config(project_dir=Path(tmp), overrides=[f"evalmodule={family}/default", "data_root=."])
     _, graph = split_evalmodule(composed["evalmodule"])
     if not run_nodes:
         for name in yaml.safe_load(_SHARED_RUN.read_text()):

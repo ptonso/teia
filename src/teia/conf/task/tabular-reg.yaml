@@ -1,0 +1,10 @@
+# @package _global_
+defaults:
+  - override /datamodule: tabular-reg/csv
+  - override /netmodule: tabular-reg/linear_probe
+  - override /evalmodule: reg/default
+  - _self_
+
+task:
+  _target_: teia.task.tabular_reg.TabularReg
+seed: 0

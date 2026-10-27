@@ -190,3 +190,16 @@ class GradSafeRichModelSummaryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_fitness_callback_set_monitors_val_fitness(tmp_path) -> None:
+    from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+
+    from teia.core.instantiate import instantiate_many
+    from teia.core.runtime.composer import compose_project_config
+
+    config = compose_project_config(tmp_path, overrides=["callbacks=fitness"])
+    callbacks = instantiate_many(config["callbacks"])
+    stop = next(c for c in callbacks if isinstance(c, EarlyStopping))
+    keep = next(c for c in callbacks if isinstance(c, ModelCheckpoint))
+    assert (stop.monitor, stop.mode, keep.monitor, keep.mode) == ("val/fitness", "max", "val/fitness", "max")

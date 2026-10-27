@@ -1,0 +1,12 @@
+# @package _global_
+defaults:
+  - override /datamodule: vision-det/yolo_format
+  - override /netmodule: vision-det/linear_probe
+  - override /evalmodule: det/default
+  - _self_
+
+task:
+  _target_: teia.task.vision_det.VisionDet
+seed: 0
+infer:
+  restore: [ori_shape, ratio_pad]

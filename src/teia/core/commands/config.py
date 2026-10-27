@@ -45,7 +45,7 @@ def register_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentPars
     explain_parser = config_subparsers.add_parser(
         "explain", help="Attribute each changed config group's final option to the override (or task preset) that set it."
     )
-    explain_parser.add_argument("overrides", nargs="+", help="Overrides to explain, e.g. task=vision-cls netmodule=vision-cls/mlp.")
+    explain_parser.add_argument("overrides", nargs="+", help="Overrides to explain, e.g. task=vision-cls netmodule=vision-cls/linear_probe.")
     explain_parser.set_defaults(_teia_handler=_run_explain)
 
     lint_parser = config_subparsers.add_parser(

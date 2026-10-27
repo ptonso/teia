@@ -70,10 +70,10 @@ class ConfigInitFromTests(unittest.TestCase):
 class ConfigExplainTests(unittest.TestCase):
     def test_mount_swap_inside_a_task_module_is_attributed_to_cli(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            rows = explain_overrides(Path(tmp), ["task=vision-cls", "node/net/encoder@netmodule.encoder=mlp_tabular"])
+            rows = explain_overrides(Path(tmp), ["task=vision-cls", "node/net/head@netmodule.head=pointwise_mlp"])
         by_group = {group: (option, source) for group, option, source in rows}
-        self.assertEqual(by_group["node/net/encoder@netmodule.encoder"], ("mlp_tabular", "CLI"))
-        self.assertEqual(by_group["netmodule"], ("vision-cls/mlp", "task"))
+        self.assertEqual(by_group["node/net/head@netmodule.head"], ("pointwise_mlp", "CLI"))
+        self.assertEqual(by_group["netmodule"], ("vision-cls/linear_probe", "task"))
 
 
 if __name__ == "__main__":

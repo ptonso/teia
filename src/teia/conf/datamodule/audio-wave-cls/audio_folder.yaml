@@ -1,0 +1,26 @@
+defaults:
+  - /node/data/reader@auds: audio_folder_reader
+  - /node/data/transform@enc: encode_labels
+  - /node/data/transform@decode: decode_audio
+  - /node/data/collate@col_wave: stack
+  - /node/data/collate@col_cls: class_labels
+  - _self_
+
+auds:
+  out: [item.audio_path, item.label_name]
+enc:
+  in: item.label_name
+  out: item.cls
+  phase: target
+decode:
+  in: item.audio_path
+  out: item.waveform
+col_wave:
+  in: item.waveform
+  out: batch.waveform
+  stage: batch
+col_cls:
+  in: item.cls
+  out: batch.cls
+  stage: batch
+batch_size: 32

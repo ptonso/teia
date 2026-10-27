@@ -1,0 +1,12 @@
+# @package _global_
+defaults:
+  - override /datamodule: vision-pose/yolo_format
+  - override /netmodule: vision-pose/linear_probe
+  - override /evalmodule: pose/default
+  - _self_
+
+task:
+  _target_: teia.task.vision_pose.VisionPose
+seed: 0
+infer:
+  restore: [ori_shape, ratio_pad]

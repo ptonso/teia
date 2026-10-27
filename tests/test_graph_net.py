@@ -86,7 +86,7 @@ def test_graph_information_flows_only_along_edges(path):
 def test_pack_unpack_round_trip():
     mask = torch.tensor([[1, 1, 0], [1, 1, 1]], dtype=torch.bool)
     rows = torch.arange(5.0).unsqueeze(-1).repeat(1, 4)
-    pack = NodePack(in_shape=[(4,), (3, 4), (3,)], box_dim=2)
+    pack = NodePack(in_shape=[(4,), (3, 4), (3,)], attr_dim=2)
     out = pack(rows, torch.zeros(2, 3, 4), mask)
     assert out.shape == (2, 3, 6) and out[0, 2].abs().sum() == 0
     assert torch.equal(out[..., 0][mask], rows[:, 0])

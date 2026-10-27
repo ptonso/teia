@@ -1,0 +1,93 @@
+defaults:
+  - /node/data/reader@imgs: files_reader
+  - /node/data/reader@lbls: files_reader_txt_labels
+  - /node/data/join@pair: key_join
+  - /node/data/transform@meta: yolo_meta
+  - /node/data/transform@seg: parse_yolo_seg
+  - /node/data/transform@decode: decode_image
+  - /node/data/transform@letterbox: letterbox_seg
+  - /node/data/transform@rasterize: rasterize_instance_masks
+  - /node/data/transform@normalize: normalize_image
+  - /node/data/collate@col_image: stack_images
+  - /node/data/collate@col_boxes: concat_boxes
+  - /node/data/collate@col_cls: concat_classes
+  - /node/data/collate@col_batch_idx: batch_index
+  - /node/data/collate@col_masks: overlap_masks
+  - /node/data/collate@col_sem_masks: sem_masks
+  - /node/data/collate@col_ori_shape: list_field
+  - /node/data/collate@col_ratio_pad: list_field
+  - /node/data/collate@col_path: list_field
+  - /node/data/collate@col_polys: list_field
+  - _self_
+
+imgs:
+  out: stream.img
+lbls:
+  out: stream.lbl
+pair:
+  in: [stream.img, stream.lbl]
+  out: [item.img_path, item.label_path]
+meta:
+  in: item.label_path
+  phase: target
+  stage: plan
+seg:
+  in: item.label_path
+  out: [item.boxes, item.box_cls, item.polys]
+  phase: target
+decode:
+  in: item.img_path
+  out: item.image
+letterbox:
+  in: [item.image, item.boxes, item.polys]
+  out: [item.image, item.boxes, item.polys, item.ratio_pad, item.ori_shape]
+rasterize:
+  in: [item.image, item.polys, item.box_cls]
+  out: [item.overlap, item.sem]
+normalize:
+  pixel_norm: unit
+  in: batch.image
+  out: batch.image
+  stage: batch
+col_image:
+  in: item.image
+  out: batch.image
+  stage: batch
+col_boxes:
+  in: item.boxes
+  out: batch.bboxes
+  stage: batch
+col_cls:
+  in: item.box_cls
+  out: batch.cls
+  stage: batch
+col_batch_idx:
+  in: item.boxes
+  out: batch.batch_idx
+  stage: batch
+col_masks:
+  in: item.overlap
+  out: batch.masks
+  stage: batch
+col_sem_masks:
+  in: item.sem
+  out: batch.sem_masks
+  stage: batch
+col_ori_shape:
+  in: item.ori_shape
+  out: batch.ori_shape
+  stage: batch
+col_ratio_pad:
+  in: item.ratio_pad
+  out: batch.ratio_pad
+  stage: batch
+col_path:
+  in: item.img_path
+  out: batch.path
+  stage: batch
+batch_size: 64
+image_size: ${netmodule.input.image_size}
+col_polys:
+  in: item.polys
+  out: batch.polys
+  stage: batch

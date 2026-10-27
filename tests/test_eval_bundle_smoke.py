@@ -14,25 +14,25 @@ from teia.core.eval.graph import build_eval_graph, discover_node_entries
 from teia.core.eval.runner import run_eval
 
 class BundleSmokeTests(unittest.TestCase):
-    def _run(self, task: str, columns: dict, **meta) -> dict[str, list[Path]]:
+    def _run(self, family: str, columns: dict, **meta) -> dict[str, list[Path]]:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             write_store(root, "test", columns, **meta)
             write_store(root, "val", columns, **meta)
-            graph = load_evalmodule(task)
+            graph = load_evalmodule(family)
             build_eval_graph(discover_node_entries(graph))  # cycle/producer/duplicate-out sanity
             written = run_eval(root, graph=graph, split="test", out_dir=root / "eval")
             for paths in written.values():
                 for path in paths:
-                    self.assertTrue(path.exists(), f"{task}: {path} was not written")
-                    self.assertGreater(path.stat().st_size, 0, f"{task}: {path} is empty")
+                    self.assertTrue(path.exists(), f"{family}: {path} was not written")
+                    self.assertGreater(path.stat().st_size, 0, f"{family}: {path} is empty")
             self.rerun_files = sorted(path.name for path in (root / "eval" / "threshold-opt").glob("*")) if (root / "eval" / "threshold-opt").exists() else []
             self.flat_files = sorted(path.name for path in (root / "eval").glob("*") if path.is_file())
             return written
 
     def test_multi_cls_bundle_runs_end_to_end(self) -> None:
         written = self._run(
-            "vision-multi-cls",
+            "multi-cls",
             {"capture.cls.scores": [[0.9, 0.1, 0.2], [0.1, 0.8, 0.9], [0.6, 0.6, 0.1], [0.2, 0.1, 0.7]], "batch.cls": [[1, 0, 0], [0, 1, 1], [1, 1, 0], [0, 0, 1]]},
             class_names=["a", "b", "c"],
         )
@@ -48,7 +48,7 @@ class BundleSmokeTests(unittest.TestCase):
 
     def test_reg_bundle_runs_end_to_end(self) -> None:
         written = self._run(
-            "tabular-reg",
+            "reg",
             {"capture.reg.mean": [[1.1], [2.2], [2.9], [4.1]], "capture.reg.std": [[1.0]] * 4, "batch.target": [[1.0], [2.0], [3.0], [4.0]]},
             target_names=["y"],
         )
@@ -57,7 +57,7 @@ class BundleSmokeTests(unittest.TestCase):
 
     def test_survival_bundle_runs_end_to_end(self) -> None:
         written = self._run(
-            "tabular-survival",
+            "survival",
             {"batch.time": [5.0, 8.0, 3.0, 10.0, 6.0], "batch.event": [1, 0, 1, 1, 0], "capture.survival.risk": [0.8, 0.3, 0.9, 0.2, 0.5]},
         )
         self.assertIn("concordance_table", written)

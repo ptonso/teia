@@ -1,0 +1,10 @@
+# @package _global_
+defaults:
+  - override /datamodule: audio-wave-cls/audio_folder
+  - override /netmodule: audio-wave-cls/linear_probe
+  - override /evalmodule: cls/default
+  - _self_
+
+task:
+  _target_: teia.task.audio_wave_cls.AudioWaveCls
+seed: 0

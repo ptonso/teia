@@ -67,7 +67,7 @@ class ClsBundleWritesRealSummaryTests(unittest.TestCase):
                 writer.declare_route("cls", scores="capture.cls.scores", targets="batch.cls")
                 writer.close()
 
-            graph = load_evalmodule("vision-cls")
+            graph = load_evalmodule("cls")
             out_dir = root / "eval"
             written = run_eval(root, graph=graph, split="test", out_dir=out_dir)
             self.assertIn("summary", written)
@@ -172,7 +172,7 @@ class TeiaEvalCliTests(unittest.TestCase):
                 writer.close()
 
             (root / "config").mkdir(parents=True)
-            graph = load_evalmodule("vision-cls")
+            graph = load_evalmodule("cls")
             (root / "config" / "composed.yaml").write_text(yaml.safe_dump({"evalmodule": graph}))
 
             args = Namespace(run_dirs=[str(root)], split="test", output_dir=None, compare_path=None)

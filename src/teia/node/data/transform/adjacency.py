@@ -1,4 +1,4 @@
-"""Board adjacency transforms — turn an edge list or box geometry into a per-board adjacency matrix.
+"""Graph adjacency transforms — turn an edge list or box geometry into a per-graph adjacency matrix.
 
 Source: common knowledge
 
@@ -17,10 +17,13 @@ from teia.base.data import Transform
 
 
 class EdgeAdjacency(Transform):
-    """``(item.edges[E,2] node indices, item.boxes[N,4]) → item.adj[N,N]`` bool, symmetric, self-loops."""
+    """``(item.edges[E,2] node indices, item.<nodes>[N,...]) → item.adj[N,N]`` bool, symmetric, self-loops.
 
-    def __call__(self, edges: torch.Tensor, boxes: torch.Tensor) -> torch.Tensor:
-        n = boxes.shape[0]
+    The second input is any per-node tensor, and only its length is read.
+    """
+
+    def __call__(self, edges: torch.Tensor, nodes: torch.Tensor) -> torch.Tensor:
+        n = nodes.shape[0]
         adj = torch.eye(n, dtype=torch.bool)
         adj[edges[:, 0], edges[:, 1]] = True
         adj[edges[:, 1], edges[:, 0]] = True

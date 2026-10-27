@@ -1,0 +1,8 @@
+defaults:
+  - /node/net/stem@stem: flatten
+  - /node/net/head@head: linear
+  - /optim@_here_: adam_1e3
+  - _self_
+
+stem: {out: {feat.flat: null}}
+head: {in: feat.flat}

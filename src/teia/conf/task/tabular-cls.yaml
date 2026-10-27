@@ -1,8 +1,8 @@
 # @package _global_
 defaults:
   - override /datamodule: tabular-cls/csv
-  - override /netmodule: tabular-cls/numerical_mlp
-  - override /evalmodule: tabular-cls/default
+  - override /netmodule: tabular-cls/linear_probe
+  - override /evalmodule: cls/default
   - _self_
 
 task:

@@ -1,8 +1,8 @@
 # @package _global_
 defaults:
   - override /datamodule: vision-cls/image_folder
-  - override /netmodule: vision-cls/mlp
-  - override /evalmodule: vision-cls/default
+  - override /netmodule: vision-cls/linear_probe
+  - override /evalmodule: cls/default
   - _self_
 
 task:

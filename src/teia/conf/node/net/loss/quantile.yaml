@@ -1,0 +1,2 @@
+_target_: teia.node.net.loss.quantile.QuantileLoss
+quantiles: [0.1, 0.5, 0.9]

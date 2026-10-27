@@ -40,7 +40,7 @@ class EmbeddingAccumulator:
     def __init__(self, feature_extractor: Any, *, device: str = "cpu", batch_size: int = 32) -> None:
         self.feature_extractor = feature_extractor
         self.batch_size = int(batch_size)
-        self.device = torch.device(device)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu") if device == "auto" else torch.device(device)
         self.feature_extractor.to(self.device)
         self.feature_extractor.eval()
         self._embeddings: list[np.ndarray] = []

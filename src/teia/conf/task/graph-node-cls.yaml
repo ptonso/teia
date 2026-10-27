@@ -1,10 +1,8 @@
 # @package _global_
 defaults:
-  - override /datamodule: graph-node-cls/coco_graph
-  - override /netmodule: graph-node-cls/timm_gatv2
-  - override /evalmodule: graph-node-cls/default
-  - override /callbacks: vision_fitness
-  - override /trainer: vision_default
+  - override /datamodule: graph-node-cls/tu
+  - override /netmodule: graph-node-cls/linear_probe
+  - override /evalmodule: cls/default
   - _self_
 
 task:

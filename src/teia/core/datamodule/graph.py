@@ -233,6 +233,21 @@ def producer_map(records: list[IoNodeRecord]) -> ProducerMap:
     return ProducerMap(producers_by_key=producers_by_key, final_producer=final_producer, rewrite_prev=rewrite_prev)
 
 
+def parse_nodes(name: str, entry: Mapping[str, Any]) -> list[IoNodeRecord]:
+    """Parse one envelope into its records. A collate with several ``out`` keys is a fan of single-field collates:
+    ``in`` and ``out`` pair by position, and each pair becomes a collate node ``<name>_<field>`` with the same params."""
+    outs = entry.get("out")
+    if isinstance(outs, str) or not isinstance(outs, Sequence) or len(outs) < 2:
+        return [parse_node(name, entry)]
+    cls = _resolve_component_class(str(entry.get("_target_")), name=name)
+    if _infer_kind(cls, name=name) != "collate":
+        return [parse_node(name, entry)]
+    ins = _normalize_keys(entry.get("in"), name=name, which="in")
+    if len(ins) != len(outs):
+        raise ValueError(f"data node '{name}': a collate fanning several fields pairs `in` and `out` by position; got {len(ins)} in and {len(outs)} out.")
+    return [parse_node(f"{name}_{str(out).removeprefix('batch.')}", {**entry, "in": key, "out": out}) for key, out in zip(ins, outs)]
+
+
 def join_input_name(stream_key: str) -> str:
     return stream_key.removeprefix("stream.").replace(".", "_")
 
@@ -401,7 +416,7 @@ def build_graph(node_entries: list[tuple[str, Mapping[str, Any]]], *, external: 
     """Parse → toposort (dup/missing/cycle) → validate (phase-monotonicity, collate seam, data contracts).
 
     ``external`` (stream mode) tolerates keys no node produces; the datamodule checks them once the contract is bound."""
-    records = [parse_node(name, entry) for name, entry in node_entries]
+    records = [rec for name, entry in node_entries for rec in parse_nodes(name, entry)]
     deps = _resolve_deps(records, external=external)
     ordered = _toposort(records, deps)
     _validate(ordered, deps)

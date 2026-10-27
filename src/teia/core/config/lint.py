@@ -87,11 +87,12 @@ def _contract_tasks() -> set[str]:
 
 
 def check_module_folder(path: Path, layer_root: Path, tasks: set[str]) -> LintFinding | None:
-    """Modules live under ``<graph>module/<task>/`` for a task with a preset or a contract (or a non-task folder)."""
+    """Data and net modules live under ``<graph>module/<task>/`` for a task with a preset or a contract (or a
+    non-task folder). An evalmodule lives under ``evalmodule/<family>/``, the capture family it scores."""
     parts = path.relative_to(layer_root).parts
     if len(parts) < 3:
-        return LintFinding(path, "module-folder", "modules live under `<graph>module/<task>/`.")
-    if parts[1] in _NON_TASK_FOLDERS or parts[1] in tasks:
+        return LintFinding(path, "module-folder", "modules live under `<graph>module/<task>/` (`evalmodule/<family>/` for evaluations).")
+    if parts[0] == "evalmodule" or parts[1] in _NON_TASK_FOLDERS or parts[1] in tasks:
         return None
     return LintFinding(path, "module-folder", f"module folder `{parts[1]}` names no task preset or contract.")
 

@@ -1,0 +1,13 @@
+defaults:
+  - /netmodule/_shared/linear_probe@_here_
+  - /node/net/act@act: softmax
+  - /node/net/loss@loss: cross_entropy
+  - _self_
+
+# The log-mel grid is unnormalized, so the shared learning rate overshoots.
+lr: 1.0e-4
+stem: {in: batch.audio}
+head: {out: {pred.logits: [num_classes]}}
+act: {in: pred.logits, out: {act.probs: null, act.label: null}}
+loss: {in: [pred.logits, batch.cls], out: {loss.cls: null}, weight: 1.0}
+capture: {cls.scores: act.probs, cls.label: post.act.label}

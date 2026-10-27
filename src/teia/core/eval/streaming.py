@@ -101,9 +101,8 @@ def monitor_closure(records: list[EvalNodeRecord]) -> list[EvalNodeRecord]:
 def _flat_monitor_name(record_name: str, key: str) -> str:
     """The flat monitor key a node publishes, before the ``val/`` prefix.
 
-    ``fitness`` is always published bare (``val/fitness``): the vision callback configs
-    (``vision_fitness.yaml``, ``vision_detection.yaml``) hardcode ``monitor: val/fitness``, and
-    that wiring is preserved. Every other name is namespaced by its owning node's name unless
+    ``fitness`` is always published bare (``val/fitness``): a callback config's
+    ``monitor: val/fitness`` keeps working across metrics, and that wiring is preserved. Every other name is namespaced by its owning node's name unless
     the node is already named exactly that quantity (the common single-purpose case, a node
     literally named ``macro_f1``). Self-namespacing is applied uniformly, not only on a detected
     collision, so a graph always logs under the same key regardless of what else is wired

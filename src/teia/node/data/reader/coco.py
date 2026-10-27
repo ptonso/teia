@@ -7,7 +7,7 @@ Expected layout (all paths relative to the dataset root, ``data_root`` unless ``
 
 ``annotations`` maps each split (``train``, ``val``, ``test``) to its annotation file. Emits, per image,
 ``(image_path, boxes[N,4] xywh pixels, labels: list[str])``, in this order, plus the fields any
-``extension`` appends (for example ``edges`` from ``CocoGraph``). The label of a box is its category
+``extension`` appends (for example ``edges`` from a graph extension). The label of a box is its category
 ``name`` or ``supercategory`` (``label_from``), optionally renamed through ``class_map``. A label missing
 from a given ``class_map`` raises.
 

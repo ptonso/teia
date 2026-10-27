@@ -1,0 +1,11 @@
+defaults:
+  - /netmodule/_shared/linear_probe@_here_
+  - /node/net/act@act: quantile
+  - /node/net/loss@loss: quantile
+  - _self_
+
+stem: {in: batch.numerical}
+head: {out: {pred.logits: [target, 3]}}
+act: {in: pred.logits, out: {act.quantiles: null}}
+loss: {in: [pred.logits, batch.target], out: {loss.forecast: null}, weight: 1.0}
+capture: {forecast.quantiles: act.quantiles}

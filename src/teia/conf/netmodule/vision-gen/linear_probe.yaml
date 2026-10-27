@@ -1,0 +1,14 @@
+defaults:
+  - /netmodule/_shared/linear_probe@_here_
+  - /node/net/head@decoder: linear
+  - /node/net/loss@loss: recon
+  - /node/net/act@act: reconstruct
+  - _self_
+
+input: {image_size: 32}
+stem: {in: batch.image}
+head: {out: {feat.z: [32]}}
+decoder: {in: feat.z, out: {pred.reconstructed: [3, "${datamodule.image_size}", "${datamodule.image_size}"]}}
+loss: {in: [pred.reconstructed, batch.image], out: {loss.recon: null}, weight: 1.0}
+act: {in: pred.reconstructed, out: {act.reconstructed: null}}
+capture: {gen.image: post.act.image}

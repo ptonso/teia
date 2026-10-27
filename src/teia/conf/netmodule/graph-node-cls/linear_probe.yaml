@@ -1,0 +1,19 @@
+defaults:
+  - /node/net/head@head: pointwise_mlp
+  - /node/net/adapter@unpack: node_unpack
+  - /node/net/act@act: softmax
+  - /node/net/loss@loss: cross_entropy
+  - /optim@_here_: adam_1e3
+  - _self_
+
+head:
+  in: batch.node_feat
+  out: {pred.node_logits: [num_classes]}
+  hidden: []
+  dropout: 0.0
+unpack:
+  in: [pred.node_logits, batch.node_mask]
+  out: {pred.logits: null}
+act: {in: pred.logits, out: {act.probs: null, act.label: null}}
+loss: {in: [pred.logits, batch.cls], out: {loss.cls: null}, weight: 1.0}
+capture: {cls.scores: act.probs, cls.label: post.act.label}

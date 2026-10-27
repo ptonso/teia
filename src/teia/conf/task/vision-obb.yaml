@@ -1,0 +1,12 @@
+# @package _global_
+defaults:
+  - override /datamodule: vision-obb/labelme
+  - override /netmodule: vision-obb/linear_probe
+  - override /evalmodule: obb/default
+  - _self_
+
+task:
+  _target_: teia.task.vision_obb.VisionObb
+seed: 0
+infer:
+  restore: [ori_shape, ratio_pad]

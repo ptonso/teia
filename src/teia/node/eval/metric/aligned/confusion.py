@@ -55,7 +55,7 @@ class Confusion(Metric):
     ACCEPTS = frozenset({"rule"})
 
     #: ``fitness`` is accuracy for single-label and macro-F1 for multi-label, so a
-    #: ``vision_fitness.yaml``-wired pipeline's ``EarlyStopping``/``ModelCheckpoint`` monitoring
+    #: pipeline whose ``EarlyStopping``/``ModelCheckpoint`` monitor
     #: ``val/fitness`` keeps working. macro-F1 uses the conventional definition (zero-support
     #: classes count as 0, via sklearn's ``zero_division=0``), so ``val/macro_f1`` can shift on
     #: datasets with unseen classes relative to a "drop unsupported classes" definition.
